@@ -5,16 +5,12 @@ Potato Finance is being built as a cross-platform personal finance PWA.
 ## Planning docs
 - `docs/potato-finance-development-structure.md` — End-to-end structure covering scope, UX/UI, security, background processing, UAT, delivery phases, and metrics.
 
-## Sprint B preview (Foundation Build)
+## Sprint D demo preview (Foundation Build)
 A runnable UI prototype lives in `web/` and includes:
-- responsive application shell for phone/tablet/desktop
-- profile-first onboarding stepper
-- permission rationale panel for notification access
-- Sprint B security baseline preview:
-  - passkey-ready and MFA fallback toggles
-  - active session list with revoke controls
-  - audit event feed for identity/security actions
-- basic PWA installability/service worker setup
+- Sprint A: responsive shell + onboarding + permission rationale
+- Sprint B: passkey/MFA toggles, active sessions, audit event feed
+- Sprint C: notification ingest simulator with classifier + parser + dedupe
+- Sprint D: acceptance gate checklist and staging-ledger preview
 
 ### Run locally
 ```bash
@@ -22,3 +18,9 @@ cd web
 python3 -m http.server 4173
 ```
 Then open `http://localhost:4173`.
+
+### Demo flow to try
+1. Click through onboarding.
+2. Toggle passkey and MFA states.
+3. Ingest sample notifications (pre-filled) and review accepted/ignored/duplicate counters.
+4. Check ledger rows and Sprint D gate checklist for pass/fail status.

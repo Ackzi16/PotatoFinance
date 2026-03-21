@@ -430,3 +430,11 @@ Defer post-MVP:
 - Add active session listing with revoke controls to simulate session lifecycle management.
 - Add audit event feed for onboarding, auth settings changes, service worker registration, and session revocation actions.
 - Preserve Sprint A responsive shell while extending security baseline behaviors.
+
+
+## Appendix E — Sprint C and D Demo Notes
+
+- Sprint C demo includes notification classifier (`credit-card-payment`, `transfer`, `payment`, `non-finance`) and parser outputs for amount, payee, source, confidence, rail type, and raw hash.
+- Ingest simulation includes deduplication behavior using deterministic hash checks to block repeated notifications.
+- Staging ledger preview renders parsed transactions and confidence values for manual review.
+- Sprint D acceptance gate checklist tracks demo pass/fail on transaction ingest, transfer detection, dedupe detection, and security baseline status.
