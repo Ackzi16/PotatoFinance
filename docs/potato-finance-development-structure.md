@@ -422,3 +422,11 @@ Defer post-MVP:
 - `web/styles.css`: design tokens, mobile-first layout, responsive breakpoints.
 - `web/app.js`: onboarding stepper behavior and install prompt handling.
 - `web/manifest.webmanifest` and `web/sw.js`: baseline PWA install/offline scaffold.
+
+
+## Appendix D — Sprint B Implementation Notes
+
+- Add passkey-ready and MFA fallback controls to preview identity UX.
+- Add active session listing with revoke controls to simulate session lifecycle management.
+- Add audit event feed for onboarding, auth settings changes, service worker registration, and session revocation actions.
+- Preserve Sprint A responsive shell while extending security baseline behaviors.
