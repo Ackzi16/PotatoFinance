@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>Potato Finance — Sprint D Demo Preview</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__emoji" aria-hidden="true">🥔</span>
+          <div>
+            <p class="brand__kicker">Potato Finance</p>
+            <h1 class="brand__title">Sprint D Demo Preview</h1>
+          </div>
+        </div>
+        <button class="btn btn--ghost" id="installBtn" hidden>Install</button>
+      </header>
+
+      <main class="layout-grid">
+        <section class="panel panel--hero" aria-labelledby="hero-title">
+          <h2 id="hero-title">Foundation Build demo (Sprint A → D)</h2>
+          <p>
+            This demo combines responsive UI shell, identity baseline, notification-ingest simulation,
+            deduplication, and staging-ledger preview so you can try the end-to-end flow.
+          </p>
+          <div class="hero-chips" role="list" aria-label="Demo scope">
+            <span class="chip" role="listitem">Onboarding + permissions</span>
+            <span class="chip" role="listitem">Passkey/MFA/session controls</span>
+            <span class="chip" role="listitem">Notification classifier + parser</span>
+            <span class="chip" role="listitem">Ledger + gate metrics</span>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="onboarding-title">
+          <h2 id="onboarding-title">Onboarding</h2>
+          <ol class="stepper" id="stepper" aria-live="polite">
+            <li class="step step--active" data-step="1"><h3>1. Create profile</h3><p>Name, currency, timezone.</p></li>
+            <li class="step" data-step="2"><h3>2. Select finance apps</h3><p>Allow only selected payment apps.</p></li>
+            <li class="step" data-step="3"><h3>3. Permission rationale</h3><p>Only payment/transfer notifications are ingested.</p></li>
+          </ol>
+          <div class="stepper__controls">
+            <button class="btn" id="prevStep" type="button">Back</button>
+            <button class="btn btn--primary" id="nextStep" type="button">Next</button>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="auth-title">
+          <h2 id="auth-title">Sprint B security baseline</h2>
+          <div class="toggle-list">
+            <label class="toggle"><input id="passkeyToggle" type="checkbox" checked /><span>Passkey-ready sign in</span></label>
+            <label class="toggle"><input id="mfaToggle" type="checkbox" checked /><span>MFA fallback enabled</span></label>
+          </div>
+          <p id="authStatus" class="status-pill" aria-live="polite">Passkey + MFA fallback active</p>
+          <h3>Active sessions</h3>
+          <ul class="session-list" id="sessionList"></ul>
+        </section>
+
+        <section class="panel" aria-labelledby="ingest-title">
+          <h2 id="ingest-title">Sprint C ingest simulator</h2>
+          <p class="muted">Paste one notification per line, then ingest.</p>
+          <textarea id="notificationInput" class="notification-input" rows="7">[BankApp] Card Payment of SGD 12.80 at Starbucks 09:12
+[PayNow] Transfer SGD 250.00 to Alex 10:21
+[ChatApp] New message from Sam
+[BankApp] Card Payment of SGD 12.80 at Starbucks 09:12</textarea>
+          <div class="actions-row">
+            <button class="btn btn--primary" id="ingestBtn" type="button">Ingest Notifications</button>
+            <button class="btn" id="clearLedgerBtn" type="button">Reset Demo Data</button>
+          </div>
+          <div class="stats-grid" aria-live="polite">
+            <div class="stat"><span class="stat__label">Accepted</span><strong id="acceptedCount">0</strong></div>
+            <div class="stat"><span class="stat__label">Ignored</span><strong id="ignoredCount">0</strong></div>
+            <div class="stat"><span class="stat__label">Duplicates</span><strong id="duplicateCount">0</strong></div>
+          </div>
+        </section>
+
+        <section class="panel panel--wide" aria-labelledby="ledger-title">
+          <h2 id="ledger-title">Staging ledger preview</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th><th>Amount</th><th>Payee</th><th>Rail</th><th>Type</th><th>Confidence</th><th>Source</th>
+                </tr>
+              </thead>
+              <tbody id="ledgerBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="gate-title">
+          <h2 id="gate-title">Sprint D acceptance gate</h2>
+          <ul class="checklist" id="gateChecklist">
+            <li data-gate="hasTransactions">❌ Ingest at least 1 payment transaction</li>
+            <li data-gate="hasTransfer">❌ Capture at least 1 transfer transaction</li>
+            <li data-gate="hasDedup">❌ Detect duplicate notification</li>
+            <li data-gate="hasSecurity">❌ Auth baseline enabled (passkey or MFA)</li>
+          </ul>
+        </section>
+
+        <section class="panel" aria-labelledby="audit-title">
+          <h2 id="audit-title">Audit events</h2>
+          <ul class="audit-list" id="auditList"></ul>
+        </section>
+      </main>
+
+      <nav class="tabbar" aria-label="Primary">
+        <button class="tabbar__item tabbar__item--active">Home</button>
+        <button class="tabbar__item">Transactions</button>
+        <button class="tabbar__item">Analytics</button>
+        <button class="tabbar__item">Settings</button>
+      </nav>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
