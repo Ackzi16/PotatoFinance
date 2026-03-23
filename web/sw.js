@@ -4,6 +4,7 @@ const ASSETS = [
   './index.html',
   './styles.css',
   './app.js',
+  './pdf-worker.js',
   './manifest.webmanifest',
   './offline.html'
 ];

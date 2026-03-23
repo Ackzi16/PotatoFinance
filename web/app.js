@@ -22,6 +22,7 @@ const parseCsvBtn = document.getElementById('parseCsvBtn');
 const importCsvBtn = document.getElementById('importCsvBtn');
 const pdfFile = document.getElementById('pdfFile');
 const parsePdfBtn = document.getElementById('parsePdfBtn');
+const downloadPdfCsvBtn = document.getElementById('downloadPdfCsvBtn');
 const importPreviewBody = document.getElementById('importPreviewBody');
 const importSummary = document.getElementById('importSummary');
 
@@ -206,140 +207,26 @@ const fingerprint = (item) => {
 };
 
 
-const ensurePdfJsLoaded = async () => {
-  if (globalThis.pdfjsLib) {
-    return globalThis.pdfjsLib;
-  }
-
-  const sources = [
-    'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.js',
-    'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js'
-  ];
-
-  for (const src of sources) {
-    try {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`Failed loading ${src}`));
-        document.head.appendChild(script);
-      });
-
-      if (globalThis.pdfjsLib) {
-        return globalThis.pdfjsLib;
-      }
-    } catch {
-      // try next source
-    }
-  }
-
-  return null;
-};
-
-const parseCsvText = (text) => {
-  const rows = [];
-  let current = [];
-  let value = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        value += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      current.push(value);
-      value = '';
-      continue;
-    }
-
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && next === '\n') {
-        i += 1;
-      }
-      if (value.length || current.length) {
-        current.push(value);
-        rows.push(current);
-      }
-      current = [];
-      value = '';
-      continue;
-    }
-
-    value += char;
-  }
-
-  if (value.length || current.length) {
-    current.push(value);
-    rows.push(current);
-  }
-
-  return rows;
-};
-
-
-
-const extractPdfTextFallback = async (file) => {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let text = '';
-  for (const value of bytes) {
-    if (value === 9 || value === 10 || value === 13 || (value >= 32 && value <= 126)) {
-      text += String.fromCharCode(value);
-    } else {
-      text += ' ';
-    }
-  }
-
-  const chunks = [];
-  const parenMatches = text.match(/\(([^\)]{2,})\)/g) || [];
-  parenMatches.forEach((match) => chunks.push(match.slice(1, -1)));
-
-  if (!chunks.length) {
-    chunks.push(...text.split(/\s{2,}/).filter((line) => /\d/.test(line)));
-  }
-
-  return chunks
-    .map((line) => cleanDescription(line))
-    .filter((line) => line.length > 5);
-};
-
 const parsePdfTextLines = async (file) => {
-  const pdfjsLib = await ensurePdfJsLoaded();
+  const buffer = await file.arrayBuffer();
 
-  if (!pdfjsLib) {
-    return extractPdfTextFallback(file);
-  }
-
-  const workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
-  pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-
-  const data = new Uint8Array(await file.arrayBuffer());
-  const doc = await pdfjsLib.getDocument({ data }).promise;
-
-  const lines = [];
-  for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
-    const page = await doc.getPage(pageNum);
-    const content = await page.getTextContent();
-    const text = content.items.map((item) => item.str).join(' ');
-    text
-      .split(/\s{2,}|\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .forEach((line) => lines.push(line));
-  }
-
-  return lines;
+  return new Promise((resolve, reject) => {
+    const worker = new Worker('./pdf-worker.js');
+    worker.onmessage = (event) => {
+      const payload = event.data;
+      worker.terminate();
+      if (!payload.ok) {
+        reject(new Error(payload.error || 'Failed to parse PDF content.'));
+        return;
+      }
+      resolve(payload.lines || []);
+    };
+    worker.onerror = () => {
+      worker.terminate();
+      reject(new Error('PDF worker failed to process the statement.'));
+    };
+    worker.postMessage({ buffer }, [buffer]);
+  });
 };
 
 const parsePdfLinesToRows = (lines) => {
@@ -635,6 +522,29 @@ const parseCsvRows = () => {
   renderImportPreview();
 };
 
+
+const convertRowsToCsv = (rows) => {
+  const headers = ['source', 'account_name', 'posted_date', 'description', 'amount', 'currency', 'direction', 'category', 'confidence'];
+  const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const lines = [headers.join(',')];
+  rows.forEach((row) => {
+    lines.push(headers.map((h) => escapeCsv(row[h])).join(','));
+  });
+  return lines.join('\n');
+};
+
+const downloadTextFile = (filename, content) => {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
 csvFile.addEventListener('change', async () => {
   const file = csvFile.files?.[0];
   if (!file) {
@@ -672,7 +582,7 @@ parsePdfBtn.addEventListener('click', async () => {
   }
 
   try {
-    importSummary.textContent = 'Reading PDF...';
+    importSummary.textContent = 'Parsing PDF locally in your browser...';
     const lines = await parsePdfTextLines(file);
     const parsed = parsePdfLinesToRows(lines);
 
@@ -698,10 +608,22 @@ parsePdfBtn.addEventListener('click', async () => {
     importState = { headers: [], rows: [], parsedRows: parsed };
     csvMapping.classList.add('hidden');
     renderImportPreview();
-    importSummary.textContent = `Parsed ${parsed.length} rows from PDF. Review and confirm import.`;
+    importSummary.textContent = `Parsed ${parsed.length} rows from PDF (local parse). Review and confirm import.`;
   } catch (error) {
     importSummary.textContent = `Unable to parse PDF: ${error.message}`;
   }
+});
+
+
+downloadPdfCsvBtn.addEventListener('click', () => {
+  if (!importState.parsedRows.length) {
+    importSummary.textContent = 'Parse a PDF first before downloading CSV.';
+    return;
+  }
+
+  const csvContent = convertRowsToCsv(importState.parsedRows);
+  downloadTextFile(`potato-parsed-${Date.now()}.csv`, csvContent);
+  importSummary.textContent = 'Parsed CSV downloaded securely (local device only).';
 });
 
 parseCsvBtn.addEventListener('click', () => {

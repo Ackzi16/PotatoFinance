@@ -35,11 +35,12 @@
 
         <section class="panel tab-section hidden" data-section="import">
           <h2>Import (Phase 1 CSV)</h2>
-          <p class="muted">Upload CSV, map columns, review parsed rows, then import.</p>
+          <p class="muted">Upload CSV or convert PDF to CSV locally in your browser (no file upload).</p>
           <label>CSV file<input id="csvFile" type="file" accept=".csv,text/csv" /></label>
           <label>PDF statement<input id="pdfFile" type="file" accept="application/pdf" /></label>
           <div class="actions-row">
-            <button id="parsePdfBtn" class="btn" type="button">Parse PDF</button>
+            <button id="parsePdfBtn" class="btn" type="button">Parse PDF (Local)</button>
+            <button id="downloadPdfCsvBtn" class="btn" type="button">Download Parsed CSV</button>
           </div>
           <div id="csvMapping" class="form-grid form-grid--compact hidden">
             <label>Date column<select id="mapDate"></select></label>
