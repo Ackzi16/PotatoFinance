@@ -170,7 +170,7 @@ const renderTransactions = () => {
         <td>${tx.type}</td>
         <td>
           <button class="btn" data-action="edit" data-id="${tx.id}">Edit</button>
-          <button class="btn" data-action="delete" data-id="${tx.id}">Delete</button>
+          <button class="btn" data-action="delete" data-id="${tx.id}">Del</button>
         </td>
       `;
 
