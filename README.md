@@ -28,3 +28,19 @@ Then open `http://localhost:4173`.
 1. Open your GitHub Pages URL in Safari.
 2. Tap **Share** → **Add to Home Screen**.
 3. Launch from the home screen for app-like PWA mode.
+
+
+## monopoly-core secure parser bridge (optional, recommended)
+If your bank PDF parsing works better with `monopoly-core`, run the local bridge service:
+
+```bash
+pip install monopoly-core fastapi uvicorn python-multipart
+uvicorn tools.monopoly_bridge:app --host 127.0.0.1 --port 8765
+```
+
+Then in the app Import tab:
+1. select your PDF,
+2. click **Parse with monopoly-core**,
+3. review and confirm import.
+
+This keeps parsing local to your machine (PWA -> localhost bridge).
