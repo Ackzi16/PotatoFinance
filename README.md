@@ -1,18 +1,16 @@
 # Potato Finance
 
-Potato Finance is being built as a cross-platform personal finance PWA.
+Potato Finance is a cross-platform personal finance PWA MVP that runs fully in-browser (no backend/API required).
 
-## Planning docs
-- `docs/potato-finance-development-structure.md` — End-to-end structure covering scope, UX/UI, security, background processing, UAT, delivery phases, and metrics.
+## MVP capabilities
+- Create/update a local profile (name + currency)
+- Password control (local demo)
+- Add accounts for categorisation (bank/card/wallet/cash)
+- Add/edit/delete transactions
+- Basic analytics using bar charts comparing day, month, and year (income vs expense)
+- Installable PWA with offline fallback page
 
-## Sprint D demo preview (Foundation Build)
-A runnable UI prototype lives in `web/` and includes:
-- Sprint A: responsive shell + onboarding + permission rationale
-- Sprint B: passkey/MFA toggles, active sessions, audit event feed
-- Sprint C: notification ingest simulator with classifier + parser + dedupe
-- Sprint D: acceptance gate checklist and staging-ledger preview
-
-### Run locally
+## Run locally
 ```bash
 cd web
 python3 -m http.server 4173
@@ -20,24 +18,11 @@ python3 -m http.server 4173
 Then open `http://localhost:4173`.
 
 ## Deploy to GitHub Pages (for iPhone testing)
-This repo now includes `.github/workflows/deploy-pages.yml` for automatic Pages deployment from `web/`.
+- Workflow file: `.github/workflows/deploy-pages.yml`
+- Set **Settings → Pages → Source = GitHub Actions**
+- Push to `main` or manually run **Deploy PWA to GitHub Pages** workflow
 
-### One-time GitHub setup
-1. Push this repository to your GitHub account.
-2. In GitHub: **Settings → Pages → Source**, choose **GitHub Actions**.
-3. Ensure your default branch is `main` (or trigger the workflow manually from Actions).
-
-### Deploy
-- Push to `main`, or run **Actions → Deploy PWA to GitHub Pages → Run workflow**.
-- After deploy, your demo URL will be shown in the workflow output and under Pages settings.
-
-### Install on iPhone
-1. Open the GitHub Pages URL in Safari.
+## Install on iPhone
+1. Open your GitHub Pages URL in Safari.
 2. Tap **Share** → **Add to Home Screen**.
-3. Launch from home screen to run in standalone PWA mode.
-
-## Demo flow to try
-1. Click through onboarding.
-2. Toggle passkey and MFA states.
-3. Ingest sample notifications and review accepted/ignored/duplicate counters.
-4. Check ledger rows and Sprint D gate checklist for pass/fail status.
+3. Launch from the home screen for app-like PWA mode.

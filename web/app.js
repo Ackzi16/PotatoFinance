@@ -1,285 +1,312 @@
-let currentStep = 1;
-const stepCount = 3;
-const maxAuditEvents = 10;
+const STORAGE_KEY = 'potato_finance_mvp_v1';
 
-const stepEls = Array.from(document.querySelectorAll('.step'));
-const prevBtn = document.getElementById('prevStep');
-const nextBtn = document.getElementById('nextStep');
-const passkeyToggle = document.getElementById('passkeyToggle');
-const mfaToggle = document.getElementById('mfaToggle');
-const authStatus = document.getElementById('authStatus');
-const sessionList = document.getElementById('sessionList');
-const auditList = document.getElementById('auditList');
-const ledgerBody = document.getElementById('ledgerBody');
-const ingestBtn = document.getElementById('ingestBtn');
-const clearLedgerBtn = document.getElementById('clearLedgerBtn');
-const notificationInput = document.getElementById('notificationInput');
-const acceptedCount = document.getElementById('acceptedCount');
-const ignoredCount = document.getElementById('ignoredCount');
-const duplicateCount = document.getElementById('duplicateCount');
-const gateChecklist = document.getElementById('gateChecklist');
+const installBtn = document.getElementById('installBtn');
+const tabButtons = Array.from(document.querySelectorAll('[data-tab]'));
+const tabSections = Array.from(document.querySelectorAll('[data-section]'));
 
-const state = {
-  sessions: [
-    { id: 's-1', device: 'iPhone 16', location: 'Singapore', current: true },
-    { id: 's-2', device: 'iPad Pro', location: 'Singapore', current: false },
-    { id: 's-3', device: 'Chrome Desktop', location: 'San Francisco', current: false }
-  ],
-  auditEvents: [],
-  transactions: [],
-  seenHashes: new Set(),
-  stats: { accepted: 0, ignored: 0, duplicates: 0 }
+const kpiIncome = document.getElementById('kpiIncome');
+const kpiExpense = document.getElementById('kpiExpense');
+const kpiNet = document.getElementById('kpiNet');
+const kpiUtilisation = document.getElementById('kpiUtilisation');
+
+const transactionForm = document.getElementById('transactionForm');
+const transactionId = document.getElementById('transactionId');
+const txDate = document.getElementById('txDate');
+const txAmount = document.getElementById('txAmount');
+const txType = document.getElementById('txType');
+const txAccount = document.getElementById('txAccount');
+const txCategory = document.getElementById('txCategory');
+const txNote = document.getElementById('txNote');
+const resetTxBtn = document.getElementById('resetTxBtn');
+const transactionsBody = document.getElementById('transactionsBody');
+
+const analyticsBars = document.getElementById('analyticsBars');
+
+const profileForm = document.getElementById('profileForm');
+const profileName = document.getElementById('profileName');
+const profileCurrency = document.getElementById('profileCurrency');
+const passwordForm = document.getElementById('passwordForm');
+const currentPassword = document.getElementById('currentPassword');
+const newPassword = document.getElementById('newPassword');
+const accountForm = document.getElementById('accountForm');
+const accountName = document.getElementById('accountName');
+const accountType = document.getElementById('accountType');
+const accountsList = document.getElementById('accountsList');
+
+const today = new Date();
+const formatDate = (date) => date.toISOString().slice(0, 10);
+
+const defaultState = {
+  profile: { name: 'Potato User', currency: 'SGD' },
+  password: 'potato123',
+  accounts: [{ id: 'acc_cash', name: 'Cash Wallet', type: 'cash' }],
+  transactions: []
 };
 
-const nowIso = () => new Date().toISOString();
-const simpleHash = (value) => Array.from(value).reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0).toString();
+const loadState = () => {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return structuredClone(defaultState);
+  }
 
-const addAuditEvent = (action) => {
-  state.auditEvents = [{ action, timestamp: nowIso() }, ...state.auditEvents].slice(0, maxAuditEvents);
-  renderAuditEvents();
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      ...structuredClone(defaultState),
+      ...parsed,
+      profile: { ...defaultState.profile, ...(parsed.profile || {}) },
+      accounts: parsed.accounts?.length ? parsed.accounts : structuredClone(defaultState.accounts),
+      transactions: Array.isArray(parsed.transactions) ? parsed.transactions : []
+    };
+  } catch {
+    return structuredClone(defaultState);
+  }
 };
 
-const classifyNotification = (text) => {
-  const normalized = text.toLowerCase();
-  if (normalized.includes('card payment')) {
-    return 'credit-card-payment';
-  }
-  if (normalized.includes('transfer')) {
-    return 'transfer';
-  }
-  if (normalized.includes('payment')) {
-    return 'payment';
-  }
-  return 'non-finance';
+let state = loadState();
+
+const persist = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+const money = (value) => `${state.profile.currency} ${Number(value).toFixed(2)}`;
+
+const setActiveTab = (tab) => {
+  tabButtons.forEach((btn) => btn.classList.toggle('tabbar__item--active', btn.dataset.tab === tab));
+  tabSections.forEach((section) => section.classList.toggle('hidden', section.dataset.section !== tab));
 };
 
-const parseNotification = (rawText) => {
-  const type = classifyNotification(rawText);
-  const sourceMatch = rawText.match(/^\[([^\]]+)\]/);
-  const amountMatch = rawText.match(/(?:sgd|\$)\s?([0-9]+(?:\.[0-9]{1,2})?)/i);
-  const atMatch = rawText.match(/(?:at|to)\s([A-Za-z0-9\s]+?)(?:\s\d{1,2}:\d{2}|$)/i);
-  const timeMatch = rawText.match(/(\d{1,2}:\d{2})$/);
+const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+const yearKey = String(today.getFullYear());
+const dayKey = formatDate(today);
 
-  const amount = amountMatch ? Number(amountMatch[1]) : null;
-  const payee = atMatch ? atMatch[1].trim() : 'Unknown';
-  const source = sourceMatch ? sourceMatch[1] : 'Unknown App';
-  const confidence = type === 'non-finance' ? 0.2 : amount && payee !== 'Unknown' ? 0.95 : 0.7;
-  const rail = type === 'credit-card-payment' ? 'Credit Card' : type === 'transfer' ? 'Transfer' : 'Other';
-
-  return {
-    source,
-    rawText,
-    type,
-    amount,
-    payee,
-    rail,
-    confidence,
-    timestamp: timeMatch ? `${new Date().toISOString().slice(0, 10)} ${timeMatch[1]}` : nowIso(),
-    rawHash: simpleHash(rawText)
-  };
+const aggregate = (predicate) => {
+  return state.transactions.reduce(
+    (acc, tx) => {
+      if (!predicate(tx)) {
+        return acc;
+      }
+      if (tx.type === 'income') {
+        acc.income += tx.amount;
+      } else {
+        acc.expense += tx.amount;
+      }
+      return acc;
+    },
+    { income: 0, expense: 0 }
+  );
 };
 
-const renderAuditEvents = () => {
-  auditList.innerHTML = '';
-  if (!state.auditEvents.length) {
-    const item = document.createElement('li');
-    item.className = 'audit-item';
-    item.textContent = 'No events yet.';
-    auditList.appendChild(item);
-    return;
-  }
+const renderKpis = () => {
+  const m = aggregate((tx) => tx.date.startsWith(monthKey));
+  const net = m.income - m.expense;
+  const util = m.income > 0 ? (m.expense / m.income) * 100 : 0;
 
-  state.auditEvents.forEach((event) => {
-    const item = document.createElement('li');
-    item.className = 'audit-item';
-    item.innerHTML = `<span>${event.action}</span><span class="audit-item__time">${event.timestamp}</span>`;
-    auditList.appendChild(item);
+  kpiIncome.textContent = money(m.income);
+  kpiExpense.textContent = money(m.expense);
+  kpiNet.textContent = money(net);
+  kpiUtilisation.textContent = `${util.toFixed(1)}%`;
+};
+
+const renderAccountControls = () => {
+  txAccount.innerHTML = '';
+  accountsList.innerHTML = '';
+
+  state.accounts.forEach((account) => {
+    const option = document.createElement('option');
+    option.value = account.id;
+    option.textContent = `${account.name} (${account.type})`;
+    txAccount.appendChild(option);
+
+    const li = document.createElement('li');
+    li.textContent = `${account.name} • ${account.type}`;
+    accountsList.appendChild(li);
   });
 };
 
-const updateAuthStatus = () => {
-  const passkeyEnabled = passkeyToggle.checked;
-  const mfaEnabled = mfaToggle.checked;
-
-  if (passkeyEnabled && mfaEnabled) {
-    authStatus.textContent = 'Passkey + MFA fallback active';
-  } else if (passkeyEnabled) {
-    authStatus.textContent = 'Passkey only active';
-  } else if (mfaEnabled) {
-    authStatus.textContent = 'Password + MFA fallback active';
-  } else {
-    authStatus.textContent = 'Password only (not recommended)';
+const clearTransactionForm = () => {
+  transactionId.value = '';
+  txDate.value = formatDate(today);
+  txAmount.value = '';
+  txType.value = 'expense';
+  txCategory.value = '';
+  txNote.value = '';
+  if (state.accounts[0]) {
+    txAccount.value = state.accounts[0].id;
   }
-
-  updateGateChecklist();
 };
 
-const renderSessions = () => {
-  sessionList.innerHTML = '';
-  state.sessions.forEach((session) => {
-    const item = document.createElement('li');
-    item.className = 'session-item';
+const renderTransactions = () => {
+  transactionsBody.innerHTML = '';
 
-    const meta = document.createElement('span');
-    meta.className = 'session-meta';
-    meta.textContent = `${session.device} • ${session.location}${session.current ? ' • Current session' : ''}`;
-
-    const revokeBtn = document.createElement('button');
-    revokeBtn.className = 'btn';
-    revokeBtn.textContent = session.current ? 'Current' : 'Revoke';
-    revokeBtn.disabled = session.current;
-
-    revokeBtn.addEventListener('click', () => {
-      state.sessions = state.sessions.filter((entry) => entry.id !== session.id);
-      addAuditEvent(`Session revoked: ${session.device}`);
-      renderSessions();
-    });
-
-    item.append(meta, revokeBtn);
-    sessionList.appendChild(item);
-  });
-};
-
-const renderLedger = () => {
-  ledgerBody.innerHTML = '';
   if (!state.transactions.length) {
     const row = document.createElement('tr');
-    row.innerHTML = '<td colspan="7">No transactions ingested yet.</td>';
-    ledgerBody.appendChild(row);
+    row.innerHTML = '<td colspan="7">No transactions yet. Add your first transaction above.</td>';
+    transactionsBody.appendChild(row);
     return;
   }
 
-  state.transactions.forEach((txn) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `<td>${txn.timestamp}</td><td>${txn.amount ? `SGD ${txn.amount.toFixed(2)}` : 'N/A'}</td><td>${txn.payee}</td><td>${txn.rail}</td><td>${txn.type}</td><td>${Math.round(txn.confidence * 100)}%</td><td>${txn.source}</td>`;
-    ledgerBody.appendChild(row);
+  [...state.transactions]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .forEach((tx) => {
+      const row = document.createElement('tr');
+      const account = state.accounts.find((item) => item.id === tx.accountId);
+
+      row.innerHTML = `
+        <td>${tx.date}</td>
+        <td>${tx.type}</td>
+        <td>${money(tx.amount)}</td>
+        <td>${account ? account.name : 'Unknown'}</td>
+        <td>${tx.category}</td>
+        <td>${tx.note || '-'}</td>
+        <td>
+          <button class="btn" data-action="edit" data-id="${tx.id}">Edit</button>
+          <button class="btn" data-action="delete" data-id="${tx.id}">Delete</button>
+        </td>
+      `;
+
+      transactionsBody.appendChild(row);
+    });
+};
+
+const renderAnalytics = () => {
+  const periods = [
+    { label: 'Today', data: aggregate((tx) => tx.date === dayKey) },
+    { label: 'This Month', data: aggregate((tx) => tx.date.startsWith(monthKey)) },
+    { label: 'This Year', data: aggregate((tx) => tx.date.startsWith(yearKey)) }
+  ];
+
+  const maxValue = Math.max(...periods.flatMap((period) => [period.data.income, period.data.expense]), 1);
+
+  analyticsBars.innerHTML = '';
+  periods.forEach((period) => {
+    const incomeWidth = (period.data.income / maxValue) * 100;
+    const expenseWidth = (period.data.expense / maxValue) * 100;
+
+    const card = document.createElement('article');
+    card.className = 'chart-row';
+    card.innerHTML = `
+      <h4>${period.label}</h4>
+      <div class="bar-group">
+        <span class="bar-label">Income — ${money(period.data.income)}</span>
+        <div class="bar-track"><div class="bar-fill bar-fill--income" style="width:${incomeWidth}%"></div></div>
+        <span class="bar-label">Expense — ${money(period.data.expense)}</span>
+        <div class="bar-track"><div class="bar-fill bar-fill--expense" style="width:${expenseWidth}%"></div></div>
+      </div>
+    `;
+    analyticsBars.appendChild(card);
   });
 };
 
-const renderStats = () => {
-  acceptedCount.textContent = String(state.stats.accepted);
-  ignoredCount.textContent = String(state.stats.ignored);
-  duplicateCount.textContent = String(state.stats.duplicates);
+const refreshAll = () => {
+  profileName.value = state.profile.name;
+  profileCurrency.value = state.profile.currency;
+  renderAccountControls();
+  renderTransactions();
+  renderKpis();
+  renderAnalytics();
 };
 
-const updateGateChecklist = () => {
-  const gates = {
-    hasTransactions: state.transactions.length > 0,
-    hasTransfer: state.transactions.some((txn) => txn.type === 'transfer'),
-    hasDedup: state.stats.duplicates > 0,
-    hasSecurity: passkeyToggle.checked || mfaToggle.checked
+transactionForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+
+  const payload = {
+    id: transactionId.value || `tx_${Date.now()}`,
+    date: txDate.value,
+    amount: Number(txAmount.value),
+    type: txType.value,
+    accountId: txAccount.value,
+    category: txCategory.value.trim(),
+    note: txNote.value.trim()
   };
 
-  Array.from(gateChecklist.querySelectorAll('li')).forEach((item) => {
-    const gateKey = item.dataset.gate;
-    const isPass = gates[gateKey];
-    const text = item.textContent.replace(/^✅|^❌/, '').trim();
-    item.textContent = `${isPass ? '✅' : '❌'} ${text}`;
-  });
-};
+  const existingIndex = state.transactions.findIndex((tx) => tx.id === payload.id);
+  if (existingIndex >= 0) {
+    state.transactions[existingIndex] = payload;
+  } else {
+    state.transactions.push(payload);
+  }
 
-const processNotifications = () => {
-  const lines = notificationInput.value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  lines.forEach((line) => {
-    const parsed = parseNotification(line);
-
-    if (parsed.type === 'non-finance') {
-      state.stats.ignored += 1;
-      addAuditEvent(`Ignored non-finance notification from ${parsed.source}`);
-      return;
-    }
-
-    if (state.seenHashes.has(parsed.rawHash)) {
-      state.stats.duplicates += 1;
-      addAuditEvent(`Duplicate blocked (${parsed.source})`);
-      return;
-    }
-
-    state.seenHashes.add(parsed.rawHash);
-    state.transactions.unshift(parsed);
-    state.stats.accepted += 1;
-    addAuditEvent(`Transaction ingested: ${parsed.type} ${parsed.amount ? `SGD ${parsed.amount.toFixed(2)}` : ''}`.trim());
-  });
-
-  renderStats();
-  renderLedger();
-  updateGateChecklist();
-};
-
-const resetDemoData = () => {
-  state.transactions = [];
-  state.seenHashes = new Set();
-  state.stats = { accepted: 0, ignored: 0, duplicates: 0 };
-  addAuditEvent('Demo ledger reset');
-  renderStats();
-  renderLedger();
-  updateGateChecklist();
-};
-
-const setStep = (step) => {
-  currentStep = Math.max(1, Math.min(step, stepCount));
-  stepEls.forEach((el) => {
-    const isActive = Number(el.dataset.step) === currentStep;
-    el.classList.toggle('step--active', isActive);
-  });
-  prevBtn.disabled = currentStep === 1;
-  nextBtn.textContent = currentStep === stepCount ? 'Done' : 'Next';
-};
-
-prevBtn.addEventListener('click', () => {
-  setStep(currentStep - 1);
-  addAuditEvent(`Onboarding step changed to ${currentStep}`);
+  persist();
+  refreshAll();
+  clearTransactionForm();
+  setActiveTab('transactions');
 });
 
-nextBtn.addEventListener('click', () => {
-  if (currentStep === stepCount) {
-    setStep(1);
-    addAuditEvent('Onboarding stepper completed and reset');
+resetTxBtn.addEventListener('click', clearTransactionForm);
+
+transactionsBody.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement)) {
     return;
   }
-  setStep(currentStep + 1);
-  addAuditEvent(`Onboarding step changed to ${currentStep}`);
+
+  const id = target.dataset.id;
+  const action = target.dataset.action;
+  const tx = state.transactions.find((item) => item.id === id);
+  if (!tx) {
+    return;
+  }
+
+  if (action === 'delete') {
+    state.transactions = state.transactions.filter((item) => item.id !== id);
+    persist();
+    refreshAll();
+    return;
+  }
+
+  transactionId.value = tx.id;
+  txDate.value = tx.date;
+  txAmount.value = String(tx.amount);
+  txType.value = tx.type;
+  txAccount.value = tx.accountId;
+  txCategory.value = tx.category;
+  txNote.value = tx.note;
 });
 
-passkeyToggle.addEventListener('change', () => {
-  updateAuthStatus();
-  addAuditEvent(`Passkey setting ${passkeyToggle.checked ? 'enabled' : 'disabled'}`);
+profileForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  state.profile = { name: profileName.value.trim(), currency: profileCurrency.value.trim().toUpperCase() || 'SGD' };
+  persist();
+  refreshAll();
 });
 
-mfaToggle.addEventListener('change', () => {
-  updateAuthStatus();
-  addAuditEvent(`MFA fallback ${mfaToggle.checked ? 'enabled' : 'disabled'}`);
+passwordForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+
+  if (currentPassword.value !== state.password) {
+    alert('Current password is incorrect.');
+    return;
+  }
+
+  state.password = newPassword.value;
+  currentPassword.value = '';
+  newPassword.value = '';
+  persist();
+  alert('Password updated successfully.');
 });
 
-ingestBtn.addEventListener('click', processNotifications);
-clearLedgerBtn.addEventListener('click', resetDemoData);
+accountForm.addEventListener('submit', (event) => {
+  event.preventDefault();
 
-setStep(1);
-updateAuthStatus();
-renderSessions();
-renderLedger();
-renderStats();
-updateGateChecklist();
-addAuditEvent('Sprint D demo initialized');
+  state.accounts.push({
+    id: `acc_${Date.now()}`,
+    name: accountName.value.trim(),
+    type: accountType.value
+  });
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').then(
-    () => addAuditEvent('Service worker registered'),
-    () => addAuditEvent('Service worker registration failed')
-  );
-}
+  accountName.value = '';
+  accountType.value = 'bank';
+  persist();
+  refreshAll();
+});
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+});
 
 let deferredPrompt;
-const installBtn = document.getElementById('installBtn');
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   deferredPrompt = event;
   installBtn.hidden = false;
-  addAuditEvent('Install prompt available');
 });
 
 installBtn.addEventListener('click', async () => {
@@ -290,5 +317,12 @@ installBtn.addEventListener('click', async () => {
   await deferredPrompt.userChoice;
   deferredPrompt = null;
   installBtn.hidden = true;
-  addAuditEvent('Install prompt handled');
 });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+setActiveTab('home');
+refreshAll();
+clearTransactionForm();

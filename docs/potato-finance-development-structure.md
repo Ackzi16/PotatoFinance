@@ -446,3 +446,12 @@ Defer post-MVP:
 - Keep relative asset paths (`./`) so the demo works under project-page subpaths.
 - Include offline fallback page to preserve basic UX when network is unavailable.
 - Use iPhone Safari “Add to Home Screen” for realistic PWA feel testing during stakeholder reviews.
+
+
+## Appendix G — Local MVP Tabbed Experience
+
+- Home tab: monthly KPI summary (income, expense, net, utilisation).
+- Transactions tab: create/update/delete transactions with account and category fields.
+- Analytics tab: bar-chart comparison across day, month, and year.
+- Settings tab: profile, local password control, and account addition for categorisation.
+- MVP intentionally runs without backend APIs and persists data in browser local storage for demo usability.
