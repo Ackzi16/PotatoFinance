@@ -9,6 +9,20 @@ const kpiExpense = document.getElementById('kpiExpense');
 const kpiNet = document.getElementById('kpiNet');
 const kpiUtilisation = document.getElementById('kpiUtilisation');
 
+const csvFile = document.getElementById('csvFile');
+const csvMapping = document.getElementById('csvMapping');
+const mapDate = document.getElementById('mapDate');
+const mapDescription = document.getElementById('mapDescription');
+const mapAmount = document.getElementById('mapAmount');
+const mapDebit = document.getElementById('mapDebit');
+const mapCredit = document.getElementById('mapCredit');
+const mapCurrency = document.getElementById('mapCurrency');
+const mapAccountSource = document.getElementById('mapAccountSource');
+const parseCsvBtn = document.getElementById('parseCsvBtn');
+const importCsvBtn = document.getElementById('importCsvBtn');
+const importPreviewBody = document.getElementById('importPreviewBody');
+const importSummary = document.getElementById('importSummary');
+
 const transactionForm = document.getElementById('transactionForm');
 const transactionId = document.getElementById('transactionId');
 const txDate = document.getElementById('txDate');
@@ -46,7 +60,21 @@ const defaultState = {
   transactions: []
 };
 
-const loadState = () => {
+const categoryRules = [
+  { keywords: ['salary', 'payroll', 'giro salary'], category: 'Salary', direction: 'income' },
+  { keywords: ['refund', 'reversal'], category: 'Refund', direction: 'income' },
+  { keywords: ['dividend', 'interest received'], category: 'Investment Income', direction: 'income' },
+  { keywords: ['grab', 'gojek', 'tada'], category: 'Transport' },
+  { keywords: ['ntuc', 'don don donki', 'sheng siong'], category: 'Groceries' },
+  { keywords: ['fast transfer out', 'paynow to'], category: 'Transfer' },
+  { keywords: ['paynow received', 'fast in'], category: 'Transfer', direction: 'income' },
+  { keywords: ['fee', 'charge', 'interest charged'], category: 'Fees' }
+];
+
+let importState = { headers: [], rows: [], parsedRows: [] };
+let state = loadState();
+
+function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
     return structuredClone(defaultState);
@@ -64,9 +92,7 @@ const loadState = () => {
   } catch {
     return structuredClone(defaultState);
   }
-};
-
-let state = loadState();
+}
 
 const persist = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 const money = (value) => `${state.profile.currency} ${Number(value).toFixed(2)}`;
@@ -80,45 +106,173 @@ const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart
 const yearKey = String(today.getFullYear());
 const dayKey = formatDate(today);
 
-const aggregate = (predicate) => {
-  return state.transactions.reduce(
-    (acc, tx) => {
-      if (!predicate(tx)) {
-        return acc;
-      }
-      if (tx.type === 'income') {
-        acc.income += tx.amount;
-      } else {
-        acc.expense += tx.amount;
-      }
-      return acc;
-    },
-    { income: 0, expense: 0 }
-  );
+const parseAmount = (value) => {
+  if (value == null || value === '') {
+    return null;
+  }
+  const normalized = String(value).replace(/,/g, '').replace(/[()]/g, '').trim();
+  if (!normalized) {
+    return null;
+  }
+  const parsed = Number(normalized.replace(/[^0-9.-]/g, ''));
+  return Number.isNaN(parsed) ? null : parsed;
 };
+
+const normalizeDate = (value) => {
+  if (!value) {
+    return formatDate(today);
+  }
+
+  const text = String(value).trim();
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return formatDate(parsed);
+  }
+
+  const m = text.match(/(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/);
+  if (!m) {
+    return formatDate(today);
+  }
+
+  const year = m[3] ? (m[3].length === 2 ? `20${m[3]}` : m[3]) : String(today.getFullYear());
+  return `${year}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+};
+
+const cleanDescription = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const inferDirection = ({ debit, credit, amount, description }) => {
+  const text = description.toLowerCase();
+  const incomeWords = ['salary', 'refund', 'reversal', 'dividend', 'paynow received', 'fast in', 'interest received'];
+  const expenseWords = ['card payment', 'payment', 'transfer out', 'paynow to', 'withdrawal', 'fee', 'charge', 'interest charged'];
+
+  if (credit != null && credit > 0) {
+    return 'income';
+  }
+  if (debit != null && debit > 0) {
+    return 'expense';
+  }
+  if (incomeWords.some((keyword) => text.includes(keyword))) {
+    return 'income';
+  }
+  if (expenseWords.some((keyword) => text.includes(keyword))) {
+    return 'expense';
+  }
+  if (amount < 0) {
+    return 'expense';
+  }
+  if (amount > 0) {
+    return 'income';
+  }
+  return 'expense';
+};
+
+const inferCategory = (description, direction) => {
+  const text = description.toLowerCase();
+  for (const rule of categoryRules) {
+    if (rule.direction && rule.direction !== direction) {
+      continue;
+    }
+
+    if (rule.keywords.some((keyword) => text.includes(keyword))) {
+      return rule.category;
+    }
+  }
+
+  return direction === 'income' ? 'Income' : 'General Expense';
+};
+
+const calculateConfidence = ({ description, amount, direction, date }) => {
+  let score = 0.5;
+  if (description) {
+    score += 0.2;
+  }
+  if (amount > 0) {
+    score += 0.2;
+  }
+  if (direction) {
+    score += 0.05;
+  }
+  if (date) {
+    score += 0.05;
+  }
+  return Math.min(0.99, score);
+};
+
+const fingerprint = (item) => {
+  const desc = cleanDescription(item.description).toUpperCase();
+  return `${item.posted_date}|${item.amount.toFixed(2)}|${desc}|${item.account_name}`;
+};
+
+const parseCsvText = (text) => {
+  const rows = [];
+  let current = [];
+  let value = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        value += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      current.push(value);
+      value = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') {
+        i += 1;
+      }
+      if (value.length || current.length) {
+        current.push(value);
+        rows.push(current);
+      }
+      current = [];
+      value = '';
+      continue;
+    }
+
+    value += char;
+  }
+
+  if (value.length || current.length) {
+    current.push(value);
+    rows.push(current);
+  }
+
+  return rows;
+};
+
+const aggregate = (predicate) => state.transactions.reduce((acc, tx) => {
+  if (!predicate(tx)) {
+    return acc;
+  }
+  if (tx.type === 'income') {
+    acc.income += tx.amount;
+  } else {
+    acc.expense += tx.amount;
+  }
+  return acc;
+}, { income: 0, expense: 0 });
 
 const renderKpis = () => {
   const m = aggregate((tx) => tx.date.startsWith(monthKey));
   const net = m.income - m.expense;
   const util = m.income > 0 ? (m.expense / m.income) * 100 : 0;
-
   kpiIncome.textContent = money(m.income);
   kpiExpense.textContent = money(m.expense);
   kpiNet.textContent = money(net);
   kpiUtilisation.textContent = `${util.toFixed(1)}%`;
-};
-
-
-const setTransactionMode = (mode, tx = null) => {
-  const isEdit = mode === 'edit';
-  transactionForm.dataset.mode = isEdit ? 'edit' : 'create';
-  txModeIndicator.classList.toggle('hidden', !isEdit);
-  cancelEditBtn.classList.toggle('hidden', !isEdit);
-  saveTxBtn.textContent = isEdit ? 'Update transaction' : 'Save transaction';
-
-  if (isEdit && tx) {
-    txModeIndicator.textContent = `Editing ${tx.type} on ${tx.date}`;
-  }
 };
 
 const renderAccountControls = () => {
@@ -135,6 +289,17 @@ const renderAccountControls = () => {
     li.textContent = `${account.name} • ${account.type}`;
     accountsList.appendChild(li);
   });
+};
+
+const setTransactionMode = (mode, tx = null) => {
+  const isEdit = mode === 'edit';
+  transactionForm.dataset.mode = isEdit ? 'edit' : 'create';
+  txModeIndicator.classList.toggle('hidden', !isEdit);
+  cancelEditBtn.classList.toggle('hidden', !isEdit);
+  saveTxBtn.textContent = isEdit ? 'Update transaction' : 'Save transaction';
+  if (isEdit && tx) {
+    txModeIndicator.textContent = `Editing ${tx.type} on ${tx.date}`;
+  }
 };
 
 const clearTransactionForm = () => {
@@ -155,27 +320,24 @@ const renderTransactions = () => {
 
   if (!state.transactions.length) {
     const row = document.createElement('tr');
-    row.innerHTML = '<td colspan="4">No transactions yet. Add your first transaction above.</td>';
+    row.innerHTML = '<td colspan="4">No transactions yet. Add your first transaction or import CSV.</td>';
     transactionsBody.appendChild(row);
     return;
   }
 
-  [...state.transactions]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .forEach((tx) => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${tx.date}</td>
-        <td>${money(tx.amount)}</td>
-        <td>${tx.type}</td>
-        <td>
-          <button class="btn" data-action="edit" data-id="${tx.id}">Edit</button>
-          <button class="btn" data-action="delete" data-id="${tx.id}">Del</button>
-        </td>
-      `;
-
-      transactionsBody.appendChild(row);
-    });
+  [...state.transactions].sort((a, b) => b.date.localeCompare(a.date)).forEach((tx) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${tx.date}</td>
+      <td>${money(tx.amount)}</td>
+      <td>${tx.type}</td>
+      <td>
+        <button class="btn" data-action="edit" data-id="${tx.id}">Edit</button>
+        <button class="btn" data-action="delete" data-id="${tx.id}">Del</button>
+      </td>
+    `;
+    transactionsBody.appendChild(row);
+  });
 };
 
 const renderAnalytics = () => {
@@ -186,8 +348,8 @@ const renderAnalytics = () => {
   ];
 
   const maxValue = Math.max(...periods.flatMap((period) => [period.data.income, period.data.expense]), 1);
-
   analyticsBars.innerHTML = '';
+
   periods.forEach((period) => {
     const incomeWidth = (period.data.income / maxValue) * 100;
     const expenseWidth = (period.data.expense / maxValue) * 100;
@@ -207,6 +369,33 @@ const renderAnalytics = () => {
   });
 };
 
+const renderImportPreview = () => {
+  importPreviewBody.innerHTML = '';
+  if (!importState.parsedRows.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="7">No parsed rows yet. Upload and parse a CSV first.</td>';
+    importPreviewBody.appendChild(row);
+    return;
+  }
+
+  importState.parsedRows.forEach((item, idx) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><input type="checkbox" data-keep-idx="${idx}" ${item.keep ? 'checked' : ''} /></td>
+      <td>${item.posted_date}</td>
+      <td>${item.description}</td>
+      <td>${item.currency} ${item.amount.toFixed(2)}</td>
+      <td>${item.direction}</td>
+      <td>${item.category}</td>
+      <td>${Math.round(item.confidence * 100)}%</td>
+    `;
+    importPreviewBody.appendChild(row);
+  });
+
+  const kept = importState.parsedRows.filter((item) => item.keep).length;
+  importSummary.textContent = `${importState.parsedRows.length} parsed • ${kept} marked for import`;
+};
+
 const refreshAll = () => {
   profileName.value = state.profile.name;
   profileCurrency.value = state.profile.currency;
@@ -214,7 +403,185 @@ const refreshAll = () => {
   renderTransactions();
   renderKpis();
   renderAnalytics();
+  renderImportPreview();
 };
+
+const populateMappingOptions = (headers) => {
+  const selects = [mapDate, mapDescription, mapAmount, mapDebit, mapCredit, mapCurrency, mapAccountSource];
+  selects.forEach((sel) => {
+    sel.innerHTML = '<option value="">-- none --</option>';
+    headers.forEach((header) => {
+      const option = document.createElement('option');
+      option.value = header;
+      option.textContent = header;
+      sel.appendChild(option);
+    });
+  });
+
+  const guess = (select, patterns) => {
+    const found = headers.find((h) => patterns.some((p) => h.toLowerCase().includes(p)));
+    if (found) {
+      select.value = found;
+    }
+  };
+
+  guess(mapDate, ['date', 'post']);
+  guess(mapDescription, ['description', 'remark', 'merchant']);
+  guess(mapAmount, ['amount']);
+  guess(mapDebit, ['debit', 'withdrawal', 'dr']);
+  guess(mapCredit, ['credit', 'deposit', 'cr']);
+  guess(mapCurrency, ['currency', 'ccy']);
+  guess(mapAccountSource, ['account', 'card', 'source']);
+};
+
+const ensureAccount = (name, type = 'bank') => {
+  const normalized = (name || '').trim();
+  if (!normalized) {
+    return state.accounts[0]?.id || 'acc_cash';
+  }
+
+  const existing = state.accounts.find((acc) => acc.name.toLowerCase() === normalized.toLowerCase());
+  if (existing) {
+    return existing.id;
+  }
+
+  const id = `acc_${Date.now()}_${Math.floor(Math.random() * 9999)}`;
+  state.accounts.push({ id, name: normalized, type });
+  return id;
+};
+
+const parseCsvRows = () => {
+  const getValue = (row, key) => (key ? row[key] : '');
+
+  const parsed = importState.rows.map((row) => {
+    const description = cleanDescription(getValue(row, mapDescription.value));
+    const date = normalizeDate(getValue(row, mapDate.value));
+    const debit = parseAmount(getValue(row, mapDebit.value));
+    const credit = parseAmount(getValue(row, mapCredit.value));
+    const amountCol = parseAmount(getValue(row, mapAmount.value));
+    const amountRaw = credit ?? debit ?? amountCol ?? 0;
+    const direction = inferDirection({ debit, credit, amount: amountRaw, description });
+    const amount = Math.abs(amountRaw);
+    const currency = cleanDescription(getValue(row, mapCurrency.value)) || state.profile.currency;
+    const source = cleanDescription(getValue(row, mapAccountSource.value)) || 'CSV Import';
+    const category = inferCategory(description, direction);
+    const confidence = calculateConfidence({ description, amount, direction, date });
+
+    return {
+      source: source.toLowerCase().replace(/\s+/g, '-'),
+      account_name: source,
+      posted_date: date,
+      description,
+      amount,
+      currency,
+      direction,
+      category,
+      raw_text: Object.values(row).join(' | '),
+      confidence,
+      keep: true
+    };
+  });
+
+  const existingFingerprints = new Set(state.transactions.map((tx) => fingerprint({
+    posted_date: tx.date,
+    amount: tx.amount,
+    description: tx.note || tx.category,
+    account_name: (state.accounts.find((acc) => acc.id === tx.accountId)?.name) || ''
+  })));
+
+  parsed.forEach((item) => {
+    if (existingFingerprints.has(fingerprint(item))) {
+      item.keep = false;
+      item.confidence = Math.min(item.confidence, 0.6);
+    }
+  });
+
+  importState.parsedRows = parsed;
+  renderImportPreview();
+};
+
+csvFile.addEventListener('change', async () => {
+  const file = csvFile.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  const text = await file.text();
+  const rows = parseCsvText(text).filter((row) => row.length);
+  if (rows.length < 2) {
+    importSummary.textContent = 'CSV needs at least a header row and one data row.';
+    return;
+  }
+
+  const headers = rows[0].map((h) => cleanDescription(h));
+  const dataRows = rows.slice(1).map((values) => {
+    const record = {};
+    headers.forEach((header, idx) => {
+      record[header] = values[idx] ?? '';
+    });
+    return record;
+  });
+
+  importState = { headers, rows: dataRows, parsedRows: [] };
+  populateMappingOptions(headers);
+  csvMapping.classList.remove('hidden');
+  importSummary.textContent = `Loaded ${dataRows.length} CSV rows. Map columns and click Parse CSV.`;
+});
+
+parseCsvBtn.addEventListener('click', () => {
+  if (!importState.rows.length) {
+    importSummary.textContent = 'Upload a CSV file first.';
+    return;
+  }
+
+  if (!mapDate.value || !mapDescription.value || (!mapAmount.value && !mapDebit.value && !mapCredit.value)) {
+    importSummary.textContent = 'Please map at least date, description, and one amount/debit/credit column.';
+    return;
+  }
+
+  parseCsvRows();
+});
+
+importPreviewBody.addEventListener('change', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const idx = Number(target.dataset.keepIdx);
+  if (Number.isNaN(idx) || !importState.parsedRows[idx]) {
+    return;
+  }
+
+  importState.parsedRows[idx].keep = target.checked;
+  renderImportPreview();
+});
+
+importCsvBtn.addEventListener('click', () => {
+  const selected = importState.parsedRows.filter((row) => row.keep);
+  if (!selected.length) {
+    importSummary.textContent = 'No rows selected for import.';
+    return;
+  }
+
+  selected.forEach((row) => {
+    const accountId = ensureAccount(row.account_name, 'bank');
+    state.transactions.push({
+      id: `tx_${Date.now()}_${Math.floor(Math.random() * 9999)}`,
+      date: row.posted_date,
+      amount: row.amount,
+      type: row.direction,
+      accountId,
+      category: row.category,
+      note: row.description
+    });
+  });
+
+  persist();
+  refreshAll();
+  importSummary.textContent = `Imported ${selected.length} transactions successfully.`;
+  setActiveTab('transactions');
+});
 
 transactionForm.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -284,12 +651,10 @@ profileForm.addEventListener('submit', (event) => {
 
 passwordForm.addEventListener('submit', (event) => {
   event.preventDefault();
-
   if (currentPassword.value !== state.password) {
     alert('Current password is incorrect.');
     return;
   }
-
   state.password = newPassword.value;
   currentPassword.value = '';
   newPassword.value = '';
@@ -299,22 +664,14 @@ passwordForm.addEventListener('submit', (event) => {
 
 accountForm.addEventListener('submit', (event) => {
   event.preventDefault();
-
-  state.accounts.push({
-    id: `acc_${Date.now()}`,
-    name: accountName.value.trim(),
-    type: accountType.value
-  });
-
+  state.accounts.push({ id: `acc_${Date.now()}`, name: accountName.value.trim(), type: accountType.value });
   accountName.value = '';
   accountType.value = 'bank';
   persist();
   refreshAll();
 });
 
-tabButtons.forEach((btn) => {
-  btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
-});
+tabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));
 
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (event) => {

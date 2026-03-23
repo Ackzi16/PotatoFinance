@@ -33,6 +33,36 @@
           </div>
         </section>
 
+        <section class="panel tab-section hidden" data-section="import">
+          <h2>Import (Phase 1 CSV)</h2>
+          <p class="muted">Upload CSV, map columns, review parsed rows, then import.</p>
+          <label>CSV file<input id="csvFile" type="file" accept=".csv,text/csv" /></label>
+          <div id="csvMapping" class="form-grid form-grid--compact hidden">
+            <label>Date column<select id="mapDate"></select></label>
+            <label>Description column<select id="mapDescription"></select></label>
+            <label>Amount column<select id="mapAmount"></select></label>
+            <label>Debit column (optional)<select id="mapDebit"></select></label>
+            <label>Credit column (optional)<select id="mapCredit"></select></label>
+            <label>Currency column (optional)<select id="mapCurrency"></select></label>
+            <label>Account source column (optional)<select id="mapAccountSource"></select></label>
+          </div>
+          <div class="actions-row">
+            <button id="parseCsvBtn" class="btn btn--primary" type="button">Parse CSV</button>
+            <button id="importCsvBtn" class="btn" type="button">Confirm Import</button>
+          </div>
+          <p id="importSummary" class="muted"></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Keep</th><th>Date</th><th>Description</th><th>Amount</th><th>Dir</th><th>Category</th><th>Conf</th>
+                </tr>
+              </thead>
+              <tbody id="importPreviewBody"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="panel tab-section hidden" data-section="transactions">
           <h2>Transactions</h2>
           <form id="transactionForm" class="form-grid" data-mode="create">
@@ -78,7 +108,6 @@
 
         <section class="panel tab-section hidden" data-section="settings">
           <h2>Settings</h2>
-
           <h3>Profile</h3>
           <form id="profileForm" class="form-grid form-grid--compact">
             <label>Name<input id="profileName" type="text" required /></label>
@@ -113,7 +142,8 @@
 
       <nav class="tabbar" aria-label="Primary">
         <button class="tabbar__item tabbar__item--active" data-tab="home">Home</button>
-        <button class="tabbar__item" data-tab="transactions">Transactions</button>
+        <button class="tabbar__item" data-tab="import">Import</button>
+        <button class="tabbar__item" data-tab="transactions">Txns</button>
         <button class="tabbar__item" data-tab="analytics">Analytics</button>
         <button class="tabbar__item" data-tab="settings">Settings</button>
       </nav>

@@ -7,6 +7,7 @@ Potato Finance is a cross-platform personal finance PWA MVP that runs fully in-b
 - Password control (local demo)
 - Add accounts for categorisation (bank/card/wallet/cash)
 - Add/edit/delete transactions
+- **Phase 1 CSV import**: upload CSV, map columns, parse preview, review keep/uncheck rows, import to ledger
 - Basic analytics using bar charts comparing day, month, and year (income vs expense)
 - Installable PWA with offline fallback page
 

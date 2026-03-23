@@ -455,3 +455,12 @@ Defer post-MVP:
 - Analytics tab: bar-chart comparison across day, month, and year.
 - Settings tab: profile, local password control, and account addition for categorisation.
 - MVP intentionally runs without backend APIs and persists data in browser local storage for demo usability.
+
+
+## Appendix H — Phase 1 CSV Import MVP
+
+- Add Import tab with CSV upload, manual column mapping, and parse-preview-confirm flow.
+- Normalize into shared fields (`posted_date`, `description`, `amount`, `currency`, `direction`, `category`, `confidence`).
+- Direction inference uses debit/credit columns and keyword rules, not only sign checks.
+- Include review controls (`keep` checkboxes) before writing parsed rows into the local ledger.
+- Deduplicate imports against existing transactions using a deterministic fingerprint of date/amount/description/account.
