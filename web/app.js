@@ -20,6 +20,8 @@ const mapCurrency = document.getElementById('mapCurrency');
 const mapAccountSource = document.getElementById('mapAccountSource');
 const parseCsvBtn = document.getElementById('parseCsvBtn');
 const importCsvBtn = document.getElementById('importCsvBtn');
+const pdfFile = document.getElementById('pdfFile');
+const parsePdfBtn = document.getElementById('parsePdfBtn');
 const importPreviewBody = document.getElementById('importPreviewBody');
 const importSummary = document.getElementById('importSummary');
 
@@ -251,6 +253,79 @@ const parseCsvText = (text) => {
   }
 
   return rows;
+};
+
+
+const parsePdfTextLines = async (file) => {
+  if (!window.pdfjsLib) {
+    throw new Error('PDF parser library not loaded.');
+  }
+
+  const workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+
+  const data = new Uint8Array(await file.arrayBuffer());
+  const doc = await window.pdfjsLib.getDocument({ data }).promise;
+
+  const lines = [];
+  for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
+    const page = await doc.getPage(pageNum);
+    const content = await page.getTextContent();
+    const text = content.items.map((item) => item.str).join(' ');
+    text
+      .split(/\s{2,}|\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => lines.push(line));
+  }
+
+  return lines;
+};
+
+const parsePdfLinesToRows = (lines) => {
+  const parsed = [];
+
+  lines.forEach((line) => {
+    const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4})/);
+    const amountMatch = line.match(/([\(\-]?\d+[\d,]*\.\d{2}[\)]?)(?!.*\d)/);
+
+    if (!dateMatch || !amountMatch) {
+      return;
+    }
+
+    const date = normalizeDate(dateMatch[1]);
+    const amountValue = parseAmount(amountMatch[1]);
+    if (amountValue == null) {
+      return;
+    }
+
+    const description = cleanDescription(
+      line
+        .replace(dateMatch[1], '')
+        .replace(amountMatch[1], '')
+        .replace(/\s+/g, ' ')
+    );
+
+    const direction = inferDirection({ debit: null, credit: null, amount: amountValue, description });
+    const category = inferCategory(description, direction);
+    const confidence = calculateConfidence({ description, amount: Math.abs(amountValue), direction, date }) - 0.07;
+
+    parsed.push({
+      source: 'pdf-statement',
+      account_name: 'PDF Statement',
+      posted_date: date,
+      description,
+      amount: Math.abs(amountValue),
+      currency: state.profile.currency,
+      direction,
+      category,
+      raw_text: line,
+      confidence: Math.max(0.55, confidence),
+      keep: true
+    });
+  });
+
+  return parsed;
 };
 
 const aggregate = (predicate) => state.transactions.reduce((acc, tx) => {
@@ -526,6 +601,47 @@ csvFile.addEventListener('change', async () => {
   populateMappingOptions(headers);
   csvMapping.classList.remove('hidden');
   importSummary.textContent = `Loaded ${dataRows.length} CSV rows. Map columns and click Parse CSV.`;
+});
+
+
+parsePdfBtn.addEventListener('click', async () => {
+  const file = pdfFile.files?.[0];
+  if (!file) {
+    importSummary.textContent = 'Select a PDF statement first.';
+    return;
+  }
+
+  try {
+    importSummary.textContent = 'Reading PDF...';
+    const lines = await parsePdfTextLines(file);
+    const parsed = parsePdfLinesToRows(lines);
+
+    if (!parsed.length) {
+      importSummary.textContent = 'No transaction rows detected from PDF text. Try a text-based PDF statement.';
+      return;
+    }
+
+    const existingFingerprints = new Set(state.transactions.map((tx) => fingerprint({
+      posted_date: tx.date,
+      amount: tx.amount,
+      description: tx.note || tx.category,
+      account_name: (state.accounts.find((acc) => acc.id === tx.accountId)?.name) || ''
+    })));
+
+    parsed.forEach((item) => {
+      if (existingFingerprints.has(fingerprint(item))) {
+        item.keep = false;
+        item.confidence = Math.min(item.confidence, 0.6);
+      }
+    });
+
+    importState = { headers: [], rows: [], parsedRows: parsed };
+    csvMapping.classList.add('hidden');
+    renderImportPreview();
+    importSummary.textContent = `Parsed ${parsed.length} rows from PDF. Review and confirm import.`;
+  } catch (error) {
+    importSummary.textContent = `Unable to parse PDF: ${error.message}`;
+  }
 });
 
 parseCsvBtn.addEventListener('click', () => {

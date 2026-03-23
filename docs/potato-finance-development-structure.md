@@ -460,6 +460,7 @@ Defer post-MVP:
 ## Appendix H — Phase 1 CSV Import MVP
 
 - Add Import tab with CSV upload, manual column mapping, and parse-preview-confirm flow.
+- Add text-based PDF statement import with heuristic row detection and review-before-save.
 - Normalize into shared fields (`posted_date`, `description`, `amount`, `currency`, `direction`, `category`, `confidence`).
 - Direction inference uses debit/credit columns and keyword rules, not only sign checks.
 - Include review controls (`keep` checkboxes) before writing parsed rows into the local ledger.

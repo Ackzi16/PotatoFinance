@@ -37,6 +37,10 @@
           <h2>Import (Phase 1 CSV)</h2>
           <p class="muted">Upload CSV, map columns, review parsed rows, then import.</p>
           <label>CSV file<input id="csvFile" type="file" accept=".csv,text/csv" /></label>
+          <label>PDF statement<input id="pdfFile" type="file" accept="application/pdf" /></label>
+          <div class="actions-row">
+            <button id="parsePdfBtn" class="btn" type="button">Parse PDF</button>
+          </div>
           <div id="csvMapping" class="form-grid form-grid--compact hidden">
             <label>Date column<select id="mapDate"></select></label>
             <label>Description column<select id="mapDescription"></select></label>
@@ -149,6 +153,7 @@
       </nav>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
