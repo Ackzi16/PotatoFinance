@@ -69,8 +69,25 @@ input, select {
 .actions-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 .table-wrap { overflow: auto; border: 1px solid var(--color-border); border-radius: 0.75rem; }
-table { width: 100%; border-collapse: collapse; min-width: 760px; }
-th, td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--color-border); text-align: left; font-size: 0.85rem; }
+.mode-indicator {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: var(--color-primary-strong);
+  border-radius: 0.65rem;
+  font-size: 0.8rem;
+}
+
+form[data-mode="edit"] {
+  border: 1px dashed #a5b4fc;
+  border-radius: 0.85rem;
+  padding: 0.65rem;
+  background: #fafaff;
+}
+
+table { width: 100%; border-collapse: collapse; min-width: 420px; }
+th, td { padding: 0.4rem 0.45rem; border-bottom: 1px solid var(--color-border); text-align: left; font-size: 0.76rem; }
 th { background: #f1f5f9; }
 
 .chart-grid { display: grid; gap: 0.9rem; }
@@ -113,3 +130,5 @@ th { background: #f1f5f9; }
   .form-grid .actions-row,
   .form-grid button { grid-column: span 3; }
 }
+
+.table-wrap .btn { padding: 0.3rem 0.45rem; font-size: 0.72rem; }

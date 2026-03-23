@@ -18,6 +18,9 @@ const txAccount = document.getElementById('txAccount');
 const txCategory = document.getElementById('txCategory');
 const txNote = document.getElementById('txNote');
 const resetTxBtn = document.getElementById('resetTxBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const saveTxBtn = document.getElementById('saveTxBtn');
+const txModeIndicator = document.getElementById('txModeIndicator');
 const transactionsBody = document.getElementById('transactionsBody');
 
 const analyticsBars = document.getElementById('analyticsBars');
@@ -105,6 +108,19 @@ const renderKpis = () => {
   kpiUtilisation.textContent = `${util.toFixed(1)}%`;
 };
 
+
+const setTransactionMode = (mode, tx = null) => {
+  const isEdit = mode === 'edit';
+  transactionForm.dataset.mode = isEdit ? 'edit' : 'create';
+  txModeIndicator.classList.toggle('hidden', !isEdit);
+  cancelEditBtn.classList.toggle('hidden', !isEdit);
+  saveTxBtn.textContent = isEdit ? 'Update transaction' : 'Save transaction';
+
+  if (isEdit && tx) {
+    txModeIndicator.textContent = `Editing ${tx.type} on ${tx.date}`;
+  }
+};
+
 const renderAccountControls = () => {
   txAccount.innerHTML = '';
   accountsList.innerHTML = '';
@@ -123,6 +139,7 @@ const renderAccountControls = () => {
 
 const clearTransactionForm = () => {
   transactionId.value = '';
+  setTransactionMode('create');
   txDate.value = formatDate(today);
   txAmount.value = '';
   txType.value = 'expense';
@@ -138,7 +155,7 @@ const renderTransactions = () => {
 
   if (!state.transactions.length) {
     const row = document.createElement('tr');
-    row.innerHTML = '<td colspan="7">No transactions yet. Add your first transaction above.</td>';
+    row.innerHTML = '<td colspan="4">No transactions yet. Add your first transaction above.</td>';
     transactionsBody.appendChild(row);
     return;
   }
@@ -147,15 +164,10 @@ const renderTransactions = () => {
     .sort((a, b) => b.date.localeCompare(a.date))
     .forEach((tx) => {
       const row = document.createElement('tr');
-      const account = state.accounts.find((item) => item.id === tx.accountId);
-
       row.innerHTML = `
         <td>${tx.date}</td>
-        <td>${tx.type}</td>
         <td>${money(tx.amount)}</td>
-        <td>${account ? account.name : 'Unknown'}</td>
-        <td>${tx.category}</td>
-        <td>${tx.note || '-'}</td>
+        <td>${tx.type}</td>
         <td>
           <button class="btn" data-action="edit" data-id="${tx.id}">Edit</button>
           <button class="btn" data-action="delete" data-id="${tx.id}">Delete</button>
@@ -231,6 +243,7 @@ transactionForm.addEventListener('submit', (event) => {
 });
 
 resetTxBtn.addEventListener('click', clearTransactionForm);
+cancelEditBtn.addEventListener('click', clearTransactionForm);
 
 transactionsBody.addEventListener('click', (event) => {
   const target = event.target;
@@ -259,6 +272,7 @@ transactionsBody.addEventListener('click', (event) => {
   txAccount.value = tx.accountId;
   txCategory.value = tx.category;
   txNote.value = tx.note;
+  setTransactionMode('edit', tx);
 });
 
 profileForm.addEventListener('submit', (event) => {
