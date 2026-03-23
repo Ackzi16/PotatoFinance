@@ -1,15 +1,21 @@
 {
   "name": "Potato Finance",
   "short_name": "Potato",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#4f46e5",
-  "description": "Potato Finance Sprint A preview for onboarding and responsive shell.",
+  "description": "Potato Finance Sprint D demo with onboarding, security baseline, and ingestion simulation.",
   "icons": [
     {
       "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' rx='24' fill='%234f46e5'/%3E%3Ctext x='60' y='76' text-anchor='middle' font-size='56'%3E%F0%9F%A5%94%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' rx='24' fill='%233730a3'/%3E%3Ctext x='60' y='76' text-anchor='middle' font-size='56'%3E%F0%9F%A5%94%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
       "type": "image/svg+xml"
     }
   ]

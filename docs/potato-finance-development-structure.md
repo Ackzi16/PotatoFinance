@@ -438,3 +438,11 @@ Defer post-MVP:
 - Ingest simulation includes deduplication behavior using deterministic hash checks to block repeated notifications.
 - Staging ledger preview renders parsed transactions and confidence values for manual review.
 - Sprint D acceptance gate checklist tracks demo pass/fail on transaction ingest, transfer detection, dedupe detection, and security baseline status.
+
+
+## Appendix F — GitHub Pages PWA Hosting Notes
+
+- Deploy demo from `web/` via GitHub Actions Pages workflow (`.github/workflows/deploy-pages.yml`).
+- Keep relative asset paths (`./`) so the demo works under project-page subpaths.
+- Include offline fallback page to preserve basic UX when network is unavailable.
+- Use iPhone Safari “Add to Home Screen” for realistic PWA feel testing during stakeholder reviews.
