@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>Potato Finance MVP</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__emoji" aria-hidden="true">🥔</span>
+          <div>
+            <p class="brand__kicker">Potato Finance</p>
+            <h1 class="brand__title">Local MVP</h1>
+          </div>
+        </div>
+        <button class="btn btn--ghost" id="installBtn" hidden>Install</button>
+      </header>
+
+      <main class="layout-grid">
+        <section class="panel tab-section" data-section="home">
+          <h2>Home</h2>
+          <p class="muted">Your local finance summary (no API required).</p>
+          <div class="kpi-grid">
+            <div class="kpi"><span>Income (month)</span><strong id="kpiIncome">SGD 0.00</strong></div>
+            <div class="kpi"><span>Expense (month)</span><strong id="kpiExpense">SGD 0.00</strong></div>
+            <div class="kpi"><span>Net (month)</span><strong id="kpiNet">SGD 0.00</strong></div>
+            <div class="kpi"><span>Utilisation</span><strong id="kpiUtilisation">0%</strong></div>
+          </div>
+        </section>
+
+        <section class="panel tab-section hidden" data-section="transactions">
+          <h2>Transactions</h2>
+          <form id="transactionForm" class="form-grid" data-mode="create">
+            <p id="txModeIndicator" class="mode-indicator hidden" aria-live="polite">Editing transaction</p>
+            <input type="hidden" id="transactionId" />
+            <label>Date<input id="txDate" type="date" required /></label>
+            <label>Amount<input id="txAmount" type="number" min="0" step="0.01" required /></label>
+            <label>Type
+              <select id="txType" required>
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
+            </label>
+            <label>Account
+              <select id="txAccount" required></select>
+            </label>
+            <label>Category<input id="txCategory" type="text" placeholder="Groceries" required /></label>
+            <label>Note<input id="txNote" type="text" placeholder="Optional" /></label>
+            <div class="actions-row">
+              <button class="btn btn--primary" type="submit" id="saveTxBtn">Save transaction</button>
+              <button class="btn" type="button" id="resetTxBtn">Clear</button>
+              <button class="btn hidden" type="button" id="cancelEditBtn">Cancel edit</button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Amt</th><th>Type</th><th>Act</th>
+                </tr>
+              </thead>
+              <tbody id="transactionsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel tab-section hidden" data-section="analytics">
+          <h2>Analytics</h2>
+          <p class="muted">Compare income and expense for day, month, and year.</p>
+          <div id="analyticsBars" class="chart-grid"></div>
+        </section>
+
+        <section class="panel tab-section hidden" data-section="settings">
+          <h2>Settings</h2>
+
+          <h3>Profile</h3>
+          <form id="profileForm" class="form-grid form-grid--compact">
+            <label>Name<input id="profileName" type="text" required /></label>
+            <label>Currency<input id="profileCurrency" type="text" value="SGD" required /></label>
+            <button class="btn btn--primary" type="submit">Save profile</button>
+          </form>
+
+          <h3>Password control</h3>
+          <form id="passwordForm" class="form-grid form-grid--compact">
+            <label>Current password<input id="currentPassword" type="password" required /></label>
+            <label>New password<input id="newPassword" type="password" required /></label>
+            <button class="btn btn--primary" type="submit">Update password</button>
+          </form>
+
+          <h3>Accounts for categorisation</h3>
+          <form id="accountForm" class="form-grid form-grid--compact">
+            <label>Account name<input id="accountName" type="text" placeholder="DBS Card" required /></label>
+            <label>Account type
+              <select id="accountType">
+                <option value="bank">Bank</option>
+                <option value="card">Card</option>
+                <option value="wallet">Wallet</option>
+                <option value="cash">Cash</option>
+              </select>
+            </label>
+            <button class="btn btn--primary" type="submit">Add account</button>
+          </form>
+
+          <ul id="accountsList" class="list"></ul>
+        </section>
+      </main>
+
+      <nav class="tabbar" aria-label="Primary">
+        <button class="tabbar__item tabbar__item--active" data-tab="home">Home</button>
+        <button class="tabbar__item" data-tab="transactions">Transactions</button>
+        <button class="tabbar__item" data-tab="analytics">Analytics</button>
+        <button class="tabbar__item" data-tab="settings">Settings</button>
+      </nav>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
