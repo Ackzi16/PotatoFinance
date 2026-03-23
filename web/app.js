@@ -205,6 +205,39 @@ const fingerprint = (item) => {
   return `${item.posted_date}|${item.amount.toFixed(2)}|${desc}|${item.account_name}`;
 };
 
+
+const ensurePdfJsLoaded = async () => {
+  if (globalThis.pdfjsLib) {
+    return globalThis.pdfjsLib;
+  }
+
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.js',
+    'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js'
+  ];
+
+  for (const src of sources) {
+    try {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed loading ${src}`));
+        document.head.appendChild(script);
+      });
+
+      if (globalThis.pdfjsLib) {
+        return globalThis.pdfjsLib;
+      }
+    } catch {
+      // try next source
+    }
+  }
+
+  throw new Error('PDF parser library could not be loaded. Check internet connection and retry.');
+};
+
 const parseCsvText = (text) => {
   const rows = [];
   let current = [];
@@ -257,15 +290,13 @@ const parseCsvText = (text) => {
 
 
 const parsePdfTextLines = async (file) => {
-  if (!window.pdfjsLib) {
-    throw new Error('PDF parser library not loaded.');
-  }
+  const pdfjsLib = await ensurePdfJsLoaded();
 
   const workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
   const data = new Uint8Array(await file.arrayBuffer());
-  const doc = await window.pdfjsLib.getDocument({ data }).promise;
+  const doc = await pdfjsLib.getDocument({ data }).promise;
 
   const lines = [];
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
