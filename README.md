@@ -12,7 +12,7 @@ A runnable UI prototype lives in `web/` and includes:
 - Sprint C: notification ingest simulator with classifier + parser + dedupe
 - Sprint D: acceptance gate checklist and staging-ledger preview
 
-## Run locally
+### Run locally
 ```bash
 cd web
 python3 -m http.server 4173
