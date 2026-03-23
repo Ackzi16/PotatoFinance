@@ -235,7 +235,7 @@ const ensurePdfJsLoaded = async () => {
     }
   }
 
-  throw new Error('PDF parser library could not be loaded. Check internet connection and retry.');
+  return null;
 };
 
 const parseCsvText = (text) => {
@@ -289,8 +289,37 @@ const parseCsvText = (text) => {
 };
 
 
+
+const extractPdfTextFallback = async (file) => {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let text = '';
+  for (const value of bytes) {
+    if (value === 9 || value === 10 || value === 13 || (value >= 32 && value <= 126)) {
+      text += String.fromCharCode(value);
+    } else {
+      text += ' ';
+    }
+  }
+
+  const chunks = [];
+  const parenMatches = text.match(/\(([^\)]{2,})\)/g) || [];
+  parenMatches.forEach((match) => chunks.push(match.slice(1, -1)));
+
+  if (!chunks.length) {
+    chunks.push(...text.split(/\s{2,}/).filter((line) => /\d/.test(line)));
+  }
+
+  return chunks
+    .map((line) => cleanDescription(line))
+    .filter((line) => line.length > 5);
+};
+
 const parsePdfTextLines = async (file) => {
   const pdfjsLib = await ensurePdfJsLoaded();
+
+  if (!pdfjsLib) {
+    return extractPdfTextFallback(file);
+  }
 
   const workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
@@ -648,7 +677,7 @@ parsePdfBtn.addEventListener('click', async () => {
     const parsed = parsePdfLinesToRows(lines);
 
     if (!parsed.length) {
-      importSummary.textContent = 'No transaction rows detected from PDF text. Try a text-based PDF statement.';
+      importSummary.textContent = 'No transaction rows detected from PDF content. Try another statement or use CSV if available.';
       return;
     }
 
