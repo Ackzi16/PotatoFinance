@@ -22,7 +22,9 @@ const parseCsvBtn = document.getElementById('parseCsvBtn');
 const importCsvBtn = document.getElementById('importCsvBtn');
 const pdfFile = document.getElementById('pdfFile');
 const parsePdfBtn = document.getElementById('parsePdfBtn');
+const parsePdfCliBtn = document.getElementById('parsePdfCliBtn');
 const downloadPdfCsvBtn = document.getElementById('downloadPdfCsvBtn');
+const monopolyEndpoint = document.getElementById('monopolyEndpoint');
 const importPreviewBody = document.getElementById('importPreviewBody');
 const importSummary = document.getElementById('importSummary');
 
@@ -574,6 +576,36 @@ csvFile.addEventListener('change', async () => {
 });
 
 
+
+const normalizeExternalRows = (rows) => {
+  return rows
+    .map((row) => {
+      const date = normalizeDate(row.posted_date || row.date || row.transaction_date);
+      const description = cleanDescription(row.description || row.merchant || row.raw_text || '');
+      const amount = Math.abs(parseAmount(row.amount) || 0);
+      const direction = row.direction || inferDirection({ debit: parseAmount(row.debit), credit: parseAmount(row.credit), amount: parseAmount(row.amount) || 0, description });
+      const category = row.category || inferCategory(description, direction);
+      const currency = cleanDescription(row.currency) || state.profile.currency;
+      const confidence = Number(row.confidence) || calculateConfidence({ description, amount, direction, date });
+      const accountName = cleanDescription(row.account_name || row.source || 'monopoly-core');
+
+      return {
+        source: row.source || 'monopoly-core',
+        account_name: accountName,
+        posted_date: date,
+        description,
+        amount,
+        currency,
+        direction,
+        category,
+        raw_text: row.raw_text || description,
+        confidence,
+        keep: true
+      };
+    })
+    .filter((row) => row.amount > 0 && row.description);
+};
+
 parsePdfBtn.addEventListener('click', async () => {
   const file = pdfFile.files?.[0];
   if (!file) {
@@ -614,6 +646,56 @@ parsePdfBtn.addEventListener('click', async () => {
   }
 });
 
+
+
+parsePdfCliBtn.addEventListener('click', async () => {
+  const file = pdfFile.files?.[0];
+  if (!file) {
+    importSummary.textContent = 'Select a PDF statement first.';
+    return;
+  }
+
+  try {
+    importSummary.textContent = 'Sending PDF to local monopoly-core parser...';
+    const endpoint = monopolyEndpoint.value.trim() || 'http://127.0.0.1:8765/parse';
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(endpoint, { method: 'POST', body: formData });
+    if (!response.ok) {
+      throw new Error(`Parser service error (${response.status})`);
+    }
+
+    const payload = await response.json();
+    const normalized = normalizeExternalRows(payload.rows || []);
+
+    if (!normalized.length) {
+      importSummary.textContent = 'monopoly-core parser returned no rows.';
+      return;
+    }
+
+    const existingFingerprints = new Set(state.transactions.map((tx) => fingerprint({
+      posted_date: tx.date,
+      amount: tx.amount,
+      description: tx.note || tx.category,
+      account_name: (state.accounts.find((acc) => acc.id === tx.accountId)?.name) || ''
+    })));
+
+    normalized.forEach((item) => {
+      if (existingFingerprints.has(fingerprint(item))) {
+        item.keep = false;
+        item.confidence = Math.min(item.confidence, 0.6);
+      }
+    });
+
+    importState = { headers: [], rows: [], parsedRows: normalized };
+    csvMapping.classList.add('hidden');
+    renderImportPreview();
+    importSummary.textContent = `Parsed ${normalized.length} rows via monopoly-core. Review and confirm import.`;
+  } catch (error) {
+    importSummary.textContent = `Unable to parse using monopoly-core endpoint: ${error.message}`;
+  }
+});
 
 downloadPdfCsvBtn.addEventListener('click', () => {
   if (!importState.parsedRows.length) {
