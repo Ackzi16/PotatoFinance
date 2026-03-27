@@ -8,14 +8,27 @@ Run:
 from __future__ import annotations
 
 import csv
+import os
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Potato Finance monopoly-core bridge")
+
+allowed_origins = [origin.strip() for origin in os.getenv("BRIDGE_ALLOWED_ORIGINS", "*").split(",") if origin.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins or ["*"],
+    allow_methods=["POST", "GET"],
+    allow_headers=["*"],
+)
+
+BRIDGE_API_KEY = os.getenv("BRIDGE_API_KEY", "").strip()
+MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "15"))
 
 
 def _pick(row: dict[str, str], keys: list[str], default: str = "") -> str:
@@ -61,7 +74,10 @@ def health() -> dict[str, str]:
 
 
 @app.post("/parse")
-async def parse_statement(file: UploadFile = File(...)) -> dict[str, Any]:
+async def parse_statement(file: UploadFile = File(...), x_api_key: str | None = Header(default=None)) -> dict[str, Any]:
+    if BRIDGE_API_KEY and x_api_key != BRIDGE_API_KEY:
+        raise HTTPException(status_code=401, detail='Invalid API key.')
+
     suffix = Path(file.filename or "statement.pdf").suffix or ".pdf"
     if suffix.lower() != ".pdf":
         raise HTTPException(status_code=400, detail="Only PDF uploads are supported for this endpoint.")
@@ -73,6 +89,9 @@ async def parse_statement(file: UploadFile = File(...)) -> dict[str, Any]:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         content = await file.read()
+        if len(content) > MAX_FILE_MB * 1024 * 1024:
+            raise HTTPException(status_code=413, detail=f"File too large. Max {MAX_FILE_MB}MB")
+
         input_path.write_bytes(content)
 
         cmd = [

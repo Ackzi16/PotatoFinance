@@ -462,6 +462,7 @@ Defer post-MVP:
 - Add Import tab with CSV upload, manual column mapping, and parse-preview-confirm flow.
 - Add secure local PDF-to-CSV conversion/import with worker-isolated heuristic row detection and review-before-save (no server upload).
 - Add optional monopoly-core localhost bridge mode for higher-fidelity Singapore statement parsing before import.
+- Support hosted parser bridge mode with API key + CORS allowlist for mobile clients over HTTPS.
 - Normalize into shared fields (`posted_date`, `description`, `amount`, `currency`, `direction`, `category`, `confidence`).
 - Direction inference uses debit/credit columns and keyword rules, not only sign checks.
 - Include review controls (`keep` checkboxes) before writing parsed rows into the local ledger.

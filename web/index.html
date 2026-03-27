@@ -43,7 +43,8 @@
             <button id="parsePdfCliBtn" class="btn" type="button">Parse with monopoly-core</button>
             <button id="downloadPdfCsvBtn" class="btn" type="button">Download Parsed CSV</button>
           </div>
-          <label>Local parser endpoint<input id="monopolyEndpoint" type="text" value="http://127.0.0.1:8765/parse" /></label>
+          <label>Parser endpoint (localhost or hosted)<input id="monopolyEndpoint" type="text" value="http://127.0.0.1:8765/parse" /></label>
+          <label>Parser API key (optional)<input id="monopolyApiKey" type="password" placeholder="x-api-key" /></label>
           <div id="csvMapping" class="form-grid form-grid--compact hidden">
             <label>Date column<select id="mapDate"></select></label>
             <label>Description column<select id="mapDescription"></select></label>

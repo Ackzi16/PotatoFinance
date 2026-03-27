@@ -25,6 +25,7 @@ const parsePdfBtn = document.getElementById('parsePdfBtn');
 const parsePdfCliBtn = document.getElementById('parsePdfCliBtn');
 const downloadPdfCsvBtn = document.getElementById('downloadPdfCsvBtn');
 const monopolyEndpoint = document.getElementById('monopolyEndpoint');
+const monopolyApiKey = document.getElementById('monopolyApiKey');
 const importPreviewBody = document.getElementById('importPreviewBody');
 const importSummary = document.getElementById('importSummary');
 
@@ -661,7 +662,8 @@ parsePdfCliBtn.addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(endpoint, { method: 'POST', body: formData });
+    const headers = monopolyApiKey.value.trim() ? { 'x-api-key': monopolyApiKey.value.trim() } : {};
+    const response = await fetch(endpoint, { method: 'POST', body: formData, headers });
     if (!response.ok) {
       throw new Error(`Parser service error (${response.status})`);
     }

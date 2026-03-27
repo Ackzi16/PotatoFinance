@@ -44,3 +44,17 @@ Then in the app Import tab:
 3. review and confirm import.
 
 This keeps parsing local to your machine (PWA -> localhost bridge).
+
+
+### Host the parser bridge (internet-access for phone)
+You can host the bridge so iPhone clients can parse PDFs over HTTPS.
+
+```bash
+# from repo root
+docker build -f tools/Dockerfile.bridge -t potato-bridge .
+docker run -p 8765:8765   -e BRIDGE_API_KEY=change-me   -e BRIDGE_ALLOWED_ORIGINS=https://<your-pages-domain>   potato-bridge
+```
+
+Then set in PWA Import tab:
+- Parser endpoint: `https://<your-bridge-domain>/parse`
+- Parser API key: same `BRIDGE_API_KEY`
