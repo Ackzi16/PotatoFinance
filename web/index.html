@@ -110,8 +110,23 @@
 
         <section class="panel tab-section hidden" data-section="analytics">
           <h2>Analytics</h2>
-          <p class="muted">Compare income and expense for day, month, and year.</p>
+          <p class="muted">Comparative reporting across day, week, month, quarter, and year.</p>
+          <div class="actions-row" id="analyticsRangeControls">
+            <button class="btn btn--primary" data-range="day" type="button">Day</button>
+            <button class="btn" data-range="week" type="button">Week</button>
+            <button class="btn" data-range="month" type="button">Month</button>
+            <button class="btn" data-range="quarter" type="button">Quarter</button>
+            <button class="btn" data-range="year" type="button">Year</button>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>Income</span><strong id="rangeIncome">SGD 0.00</strong></div>
+            <div class="kpi"><span>Expense</span><strong id="rangeExpense">SGD 0.00</strong></div>
+            <div class="kpi"><span>Net</span><strong id="rangeNet">SGD 0.00</strong></div>
+            <div class="kpi"><span>Period delta</span><strong id="rangeDelta">0%</strong></div>
+          </div>
           <div id="analyticsBars" class="chart-grid"></div>
+          <h3>Category breakdown</h3>
+          <div id="categoryBars" class="chart-grid"></div>
         </section>
 
         <section class="panel tab-section hidden" data-section="settings">
@@ -130,6 +145,22 @@
             <button class="btn btn--primary" type="submit">Update password</button>
           </form>
 
+          <h3>Bank sync track</h3>
+          <form id="connectorForm" class="form-grid form-grid--compact">
+            <label>Provider
+              <select id="connectorProvider">
+                <option value="dbs">DBS</option>
+                <option value="uob">UOB</option>
+                <option value="citi">Citibank</option>
+                <option value="manual">Manual CSV/PDF</option>
+              </select>
+            </label>
+            <label>Label<input id="connectorLabel" type="text" placeholder="My main bank" required /></label>
+            <label>Sync endpoint URL<input id="connectorEndpoint" type="url" placeholder="https://api.bank.com/transactions" /></label>
+            <label>Access token<input id="connectorToken" type="password" placeholder="Bearer token" /></label>
+            <button class="btn btn--primary" type="submit">Add connector</button>
+          </form>
+          <ul id="connectorsList" class="list"></ul>
           <h3>Accounts for categorisation</h3>
           <form id="accountForm" class="form-grid form-grid--compact">
             <label>Account name<input id="accountName" type="text" placeholder="DBS Card" required /></label>

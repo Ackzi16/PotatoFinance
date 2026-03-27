@@ -467,3 +467,11 @@ Defer post-MVP:
 - Direction inference uses debit/credit columns and keyword rules, not only sign checks.
 - Include review controls (`keep` checkboxes) before writing parsed rows into the local ledger.
 - Deduplicate imports against existing transactions using a deterministic fingerprint of date/amount/description/account.
+
+
+## Appendix I — Bank Sync and Analytics Expansion
+
+- Add connector abstraction layer (provider, status, last sync, sync action) to prepare for Plaid/Salt Edge/Brankas-style integrations.
+- Treat provider sync as adapter-based so each API connector can map into common normalized transaction schema.
+- Expand analytics with selectable range (day/week/month/quarter/year), period-over-period deltas, and category breakdown bars.
+- Keep initial implementation local-first while preserving extension points for authenticated API connectors later.

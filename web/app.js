@@ -44,6 +44,12 @@ const txModeIndicator = document.getElementById('txModeIndicator');
 const transactionsBody = document.getElementById('transactionsBody');
 
 const analyticsBars = document.getElementById('analyticsBars');
+const categoryBars = document.getElementById('categoryBars');
+const analyticsRangeControls = document.getElementById('analyticsRangeControls');
+const rangeIncome = document.getElementById('rangeIncome');
+const rangeExpense = document.getElementById('rangeExpense');
+const rangeNet = document.getElementById('rangeNet');
+const rangeDelta = document.getElementById('rangeDelta');
 
 const profileForm = document.getElementById('profileForm');
 const profileName = document.getElementById('profileName');
@@ -55,6 +61,12 @@ const accountForm = document.getElementById('accountForm');
 const accountName = document.getElementById('accountName');
 const accountType = document.getElementById('accountType');
 const accountsList = document.getElementById('accountsList');
+const connectorForm = document.getElementById('connectorForm');
+const connectorProvider = document.getElementById('connectorProvider');
+const connectorLabel = document.getElementById('connectorLabel');
+const connectorEndpoint = document.getElementById('connectorEndpoint');
+const connectorToken = document.getElementById('connectorToken');
+const connectorsList = document.getElementById('connectorsList');
 
 const today = new Date();
 const formatDate = (date) => date.toISOString().slice(0, 10);
@@ -63,6 +75,7 @@ const defaultState = {
   profile: { name: 'Potato User', currency: 'SGD' },
   password: 'potato123',
   accounts: [{ id: 'acc_cash', name: 'Cash Wallet', type: 'cash' }],
+  connectors: [],
   transactions: []
 };
 
@@ -79,6 +92,99 @@ const categoryRules = [
 
 let importState = { headers: [], rows: [], parsedRows: [] };
 let state = loadState();
+let activeRange = 'month';
+
+const normalizeProviderTransactions = (rawItems, provider, defaultAccountId) => {
+  return (rawItems || []).map((item) => {
+    const date = normalizeDate(item.date || item.posted_date || item.bookingDate || formatDate(new Date()));
+    const description = cleanDescription(item.description || item.narrative || item.merchant || `${provider} transaction`);
+    const amount = Math.abs(parseAmount(item.amount?.value ?? item.amount ?? item.transactionAmount) || 0);
+    const direction = item.direction || inferDirection({
+      debit: parseAmount(item.debit),
+      credit: parseAmount(item.credit),
+      amount: parseAmount(item.amount?.value ?? item.amount ?? 0) || 0,
+      description
+    });
+
+    return {
+      id: `tx_sync_${Date.now()}_${Math.floor(Math.random() * 9999)}`,
+      date,
+      amount,
+      type: direction,
+      accountId: defaultAccountId,
+      category: inferCategory(description, direction),
+      note: description
+    };
+  }).filter((item) => item.amount > 0);
+};
+
+const createHostedBankAdapter = (provider) => ({
+  async connect(config) {
+    if (!config.endpoint || !config.token) {
+      throw new Error(`${provider.toUpperCase()} requires sync endpoint and token.`);
+    }
+
+    return {
+      id: `conn_${Date.now()}`,
+      provider,
+      label: config.label,
+      endpoint: config.endpoint,
+      token: config.token,
+      status: 'connected',
+      lastSync: null
+    };
+  },
+  async sync(connector, appState) {
+    const response = await fetch(connector.endpoint, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${connector.token}`,
+        Accept: 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`${provider.toUpperCase()} sync failed (${response.status}).`);
+    }
+
+    const payload = await response.json();
+    const rows = payload.transactions || payload.data || [];
+    const accountId = appState.accounts[0]?.id || 'acc_cash';
+    return normalizeProviderTransactions(rows, provider, accountId);
+  }
+});
+
+const providerAdapters = {
+  dbs: createHostedBankAdapter('dbs'),
+  uob: createHostedBankAdapter('uob'),
+  citi: createHostedBankAdapter('citi'),
+  manual: {
+    async connect(config) {
+      return {
+        id: `conn_${Date.now()}`,
+        provider: 'manual',
+        label: config.label,
+        endpoint: '',
+        token: '',
+        status: 'connected',
+        lastSync: null
+      };
+    },
+    async sync(connector, appState) {
+      const sampleAmount = Math.round((Math.random() * 40 + 5) * 100) / 100;
+      return [{
+        id: `tx_sync_${Date.now()}`,
+        date: formatDate(new Date()),
+        amount: sampleAmount,
+        type: 'expense',
+        accountId: appState.accounts[0]?.id || 'acc_cash',
+        category: 'Synced Expense',
+        note: `Auto synced from ${connector.provider}`
+      }];
+    }
+  }
+};
+
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -93,6 +199,7 @@ function loadState() {
       ...parsed,
       profile: { ...defaultState.profile, ...(parsed.profile || {}) },
       accounts: parsed.accounts?.length ? parsed.accounts : structuredClone(defaultState.accounts),
+      connectors: Array.isArray(parsed.connectors) ? parsed.connectors : [],
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : []
     };
   } catch {
@@ -365,32 +472,128 @@ const renderTransactions = () => {
   });
 };
 
-const renderAnalytics = () => {
-  const periods = [
-    { label: 'Today', data: aggregate((tx) => tx.date === dayKey) },
-    { label: 'This Month', data: aggregate((tx) => tx.date.startsWith(monthKey)) },
-    { label: 'This Year', data: aggregate((tx) => tx.date.startsWith(yearKey)) }
-  ];
+const periodBounds = (range, offset = 0) => {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
 
-  const maxValue = Math.max(...periods.flatMap((period) => [period.data.income, period.data.expense]), 1);
+  if (range === 'day') {
+    const start = new Date(base);
+    start.setDate(start.getDate() + offset);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+
+  if (range === 'week') {
+    const start = new Date(base);
+    const day = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - day + offset * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { start, end };
+  }
+
+  if (range === 'month') {
+    const start = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+    const end = new Date(base.getFullYear(), base.getMonth() + offset + 1, 1);
+    return { start, end };
+  }
+
+  if (range === 'quarter') {
+    const quarterStartMonth = Math.floor(base.getMonth() / 3) * 3;
+    const start = new Date(base.getFullYear(), quarterStartMonth + offset * 3, 1);
+    const end = new Date(start.getFullYear(), start.getMonth() + 3, 1);
+    return { start, end };
+  }
+
+  const start = new Date(base.getFullYear() + offset, 0, 1);
+  const end = new Date(base.getFullYear() + offset + 1, 0, 1);
+  return { start, end };
+};
+
+const inBounds = (dateStr, bounds) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d >= bounds.start && d < bounds.end;
+};
+
+const aggregateByBounds = (bounds) => aggregate((tx) => inBounds(tx.date, bounds));
+
+const renderAnalytics = () => {
+  const current = aggregateByBounds(periodBounds(activeRange, 0));
+  const previous = aggregateByBounds(periodBounds(activeRange, -1));
+
+  const currentNet = current.income - current.expense;
+  const previousNet = previous.income - previous.expense;
+  const delta = previousNet === 0 ? (currentNet === 0 ? 0 : 100) : ((currentNet - previousNet) / Math.abs(previousNet)) * 100;
+
+  rangeIncome.textContent = money(current.income);
+  rangeExpense.textContent = money(current.expense);
+  rangeNet.textContent = money(currentNet);
+  rangeDelta.textContent = `${delta.toFixed(1)}%`;
+
+  const maxValue = Math.max(current.income, current.expense, previous.income, previous.expense, 1);
   analyticsBars.innerHTML = '';
 
-  periods.forEach((period) => {
-    const incomeWidth = (period.data.income / maxValue) * 100;
-    const expenseWidth = (period.data.expense / maxValue) * 100;
+  const card = document.createElement('article');
+  card.className = 'chart-row';
+  card.innerHTML = `
+    <h4>${activeRange.toUpperCase()} vs previous period</h4>
+    <div class="bar-group">
+      <span class="bar-label">Current income — ${money(current.income)}</span>
+      <div class="bar-track"><div class="bar-fill bar-fill--income" style="width:${(current.income / maxValue) * 100}%"></div></div>
+      <span class="bar-label">Current expense — ${money(current.expense)}</span>
+      <div class="bar-track"><div class="bar-fill bar-fill--expense" style="width:${(current.expense / maxValue) * 100}%"></div></div>
+      <span class="bar-label">Previous income — ${money(previous.income)}</span>
+      <div class="bar-track"><div class="bar-fill bar-fill--income" style="width:${(previous.income / maxValue) * 100}%; opacity:0.5"></div></div>
+      <span class="bar-label">Previous expense — ${money(previous.expense)}</span>
+      <div class="bar-track"><div class="bar-fill bar-fill--expense" style="width:${(previous.expense / maxValue) * 100}%; opacity:0.5"></div></div>
+    </div>
+  `;
+  analyticsBars.appendChild(card);
 
-    const card = document.createElement('article');
-    card.className = 'chart-row';
-    card.innerHTML = `
-      <h4>${period.label}</h4>
-      <div class="bar-group">
-        <span class="bar-label">Income — ${money(period.data.income)}</span>
-        <div class="bar-track"><div class="bar-fill bar-fill--income" style="width:${incomeWidth}%"></div></div>
-        <span class="bar-label">Expense — ${money(period.data.expense)}</span>
-        <div class="bar-track"><div class="bar-fill bar-fill--expense" style="width:${expenseWidth}%"></div></div>
-      </div>
-    `;
-    analyticsBars.appendChild(card);
+  const bounds = periodBounds(activeRange, 0);
+  const categoryTotals = {};
+  state.transactions.filter((tx) => tx.type === 'expense' && inBounds(tx.date, bounds)).forEach((tx) => {
+    categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
+  });
+
+  const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  categoryBars.innerHTML = '';
+  const maxCat = Math.max(...sorted.map(([,v]) => v), 1);
+
+  if (!sorted.length) {
+    const empty = document.createElement('article');
+    empty.className = 'chart-row';
+    empty.innerHTML = '<h4>No category expense data for this range.</h4>';
+    categoryBars.appendChild(empty);
+  } else {
+    sorted.forEach(([category, value]) => {
+      const row = document.createElement('article');
+      row.className = 'chart-row';
+      row.innerHTML = `
+        <h4>${category}</h4>
+        <span class="bar-label">${money(value)}</span>
+        <div class="bar-track"><div class="bar-fill bar-fill--expense" style="width:${(value / maxCat) * 100}%"></div></div>
+      `;
+      categoryBars.appendChild(row);
+    });
+  }
+};
+
+const renderConnectors = () => {
+  connectorsList.innerHTML = '';
+  if (!state.connectors.length) {
+    const li = document.createElement('li');
+    li.textContent = 'No connectors yet.';
+    connectorsList.appendChild(li);
+    return;
+  }
+
+  state.connectors.forEach((connector) => {
+    const li = document.createElement('li');
+    const lastSync = connector.lastSync ? new Date(connector.lastSync).toLocaleString() : 'never';
+    li.innerHTML = `${connector.label} • ${connector.provider.toUpperCase()} • status:${connector.status} • last sync:${lastSync} <button class="btn" data-sync-id="${connector.id}">Sync now</button>`;
+    connectorsList.appendChild(li);
   });
 };
 
@@ -429,6 +632,7 @@ const refreshAll = () => {
   renderKpis();
   renderAnalytics();
   renderImportPreview();
+  renderConnectors();
 };
 
 const populateMappingOptions = (headers) => {
@@ -851,6 +1055,87 @@ accountForm.addEventListener('submit', (event) => {
   accountType.value = 'bank';
   persist();
   refreshAll();
+});
+
+
+connectorForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const provider = connectorProvider.value;
+  const adapter = providerAdapters[provider];
+  if (!adapter) {
+    alert('Unsupported provider adapter.');
+    return;
+  }
+
+  try {
+    const connector = await adapter.connect({
+      label: connectorLabel.value.trim(),
+      endpoint: connectorEndpoint.value.trim(),
+      token: connectorToken.value.trim()
+    });
+
+    state.connectors.push(connector);
+    connectorLabel.value = '';
+    connectorEndpoint.value = '';
+    connectorToken.value = '';
+    persist();
+    refreshAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+connectorsList.addEventListener('click', async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const id = target.dataset.syncId;
+  const connector = state.connectors.find((item) => item.id === id);
+  if (!connector) {
+    return;
+  }
+
+  const adapter = providerAdapters[connector.provider];
+  if (!adapter) {
+    alert('No adapter found for provider.');
+    return;
+  }
+
+  try {
+    const syncedTransactions = await adapter.sync(connector, state);
+    connector.lastSync = new Date().toISOString();
+    connector.status = 'synced';
+
+    syncedTransactions.forEach((tx) => state.transactions.push(tx));
+    persist();
+    refreshAll();
+  } catch (error) {
+    connector.status = 'error';
+    persist();
+    refreshAll();
+    alert(error.message);
+  }
+});
+
+analyticsRangeControls.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const range = target.dataset.range;
+  if (!range) {
+    return;
+  }
+
+  activeRange = range;
+  Array.from(analyticsRangeControls.querySelectorAll('button')).forEach((btn) => {
+    btn.classList.toggle('btn--primary', btn.dataset.range === range);
+  });
+  renderAnalytics();
 });
 
 tabButtons.forEach((btn) => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));

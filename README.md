@@ -9,7 +9,8 @@ Potato Finance is a cross-platform personal finance PWA MVP that runs fully in-b
 - Add/edit/delete transactions
 - **Phase 1 CSV import**: upload CSV, map columns, parse preview, review keep/uncheck rows, import to ledger
 - **Secure PDF → CSV conversion (local)**: upload PDF, parse locally in-browser, review rows, optionally download parsed CSV, then import
-- Basic analytics using bar charts comparing day, month, and year (income vs expense)
+- Bank sync track (connector abstraction + sync simulation hooks for provider integrations)
+- Expanded analytics and reporting: day/week/month/quarter/year comparison, period-over-period deltas, category breakdown charts
 - Installable PWA with offline fallback page
 
 ## Run locally
